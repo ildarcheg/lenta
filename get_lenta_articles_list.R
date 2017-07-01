@@ -1,6 +1,8 @@
 require(lubridate)
 require(rvest)
 
+baseURL <- "https://lenta.ru"
+
 # setting working directory for mac and win
 if (Sys.getenv("HOMEPATH") == "") {
   workingDirectory <- ("~/lenta")
@@ -12,7 +14,6 @@ setwd(workingDirectory)
 # donloading list of pages with archived articles
 GetNewsListForPeriod <- function(startDate, endDate) {
   dayArray <- seq(as.Date(startDate), as.Date(endDate), by="days")
-  baseURL <- "https://lenta.ru"
   archiveLinkList <- paste0(baseURL, "/", year(dayArray), "/", 
                             formatC(month(dayArray), width = 2, format = "d", 
                             flag = "0"), "/", formatC(day(dayArray), 
