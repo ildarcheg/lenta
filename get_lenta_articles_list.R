@@ -1,6 +1,7 @@
 require(lubridate)
 require(rvest)
 
+# setting working directory for mac and win
 if (Sys.getenv("HOMEPATH") == "") {
   workingDirectory <- ("~/lenta")
 } else {
@@ -8,8 +9,9 @@ if (Sys.getenv("HOMEPATH") == "") {
 }
 setwd(workingDirectory)
 
-GetNewsList <- function() {
-  dayArray <- seq(as.Date("2010-01-01"), as.Date("2017-06-30"), by="days")
+# donloading list of pages with archived articles
+GetNewsListForPeriod <- function(startDate, endDate) {
+  dayArray <- seq(as.Date(startDate), as.Date(endDate), by="days")
   baseURL <- "https://lenta.ru"
   archiveLinkList <- paste0(baseURL, "/", year(dayArray), "/", 
                             formatC(month(dayArray), width = 2, format = "d", 
@@ -28,6 +30,11 @@ GetNewsList <- function() {
   return(newsList)
 }
 
-newsList <- GetNewsList()
-newsLinkList <- paste0(baseURL, newsList)
-saveRDS(newsLinkList, file = "data/tempNewsLinkList.rds")
+# getting links to all articles for 2010-2017
+Step1 <- function() {
+  newsList <- GetNewsListForPeriod(as.Date("2010-01-01"), as.Date("2017-06-30"))
+  newsLinkList <- paste0(baseURL, newsList)
+  saveRDS(newsLinkList, file = "data/tempNewsLinkList.rds") 
+}
+
+Step1()
