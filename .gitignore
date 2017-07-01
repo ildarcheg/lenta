@@ -1,3 +1,4 @@
 # Ignore all downloaded data
 data/
 .Rproj.user
+wget.exe

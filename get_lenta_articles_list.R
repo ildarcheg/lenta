@@ -17,10 +17,12 @@ GetNewsList <- function() {
                             width = 2, format = "d", flag = "0"), "/")
   newsList <- c()
   for (i in 1:length(archiveLinkList)) {
+    print(archiveLinkList[i])
+    print(i)
     pg <- read_html(archiveLinkList[i], encoding = "UTF-8")
     total <- html_nodes(pg, xpath=".//section[@class='b-longgrid-column']//div[@class='titles']//a") %>% html_attr("href")   
     newsList <- c(newsList, total)
-    print(i)
+ 
     saveRDS(newsList, file = "data/tempNewsList.rds")
   }
   return(newsList)
