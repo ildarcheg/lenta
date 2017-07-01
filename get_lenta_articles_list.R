@@ -11,6 +11,8 @@ if (Sys.getenv("HOMEPATH") == "") {
 }
 setwd(workingDirectory)
 
+
+## STEP 1 CODE
 # donloading list of pages with archived articles
 GetNewsListForPeriod <- function(startDate, endDate) {
   dayArray <- seq(as.Date(startDate), as.Date(endDate), by="days")
@@ -38,4 +40,10 @@ Step1 <- function() {
   saveRDS(newsLinkList, file = "data/tempNewsLinkList.rds") 
 }
 
-Step1()
+## STEP 2 CODE
+# Prepare wget code for pages downloading
+GetWgetCode <- function() {
+  
+}
+
+#Step1()
