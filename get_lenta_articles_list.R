@@ -68,8 +68,12 @@ Step2 <- function () {
   GetWgetFiles()
 }
 
+## STEP 3 CODE
+# Validation of downloaded files
+ValidateDownloadedFiles <- funcrion() {
+
+}
+
 #Step1()
-Step2()
-
-
-
+#Step2()
+Step3()
