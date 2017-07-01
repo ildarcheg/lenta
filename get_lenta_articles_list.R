@@ -46,8 +46,8 @@ GetWgetFiles <- function() {
   newsLinkList <- readRDS("data/tempNewsLinkList.rds") 
   numberOfLinks <- length(newsLinkList)
   digitNumber <- nchar(numberOfLinks)
-  groupSize <- 100000
-  filesGroup <- seq(from = 1, to = n, by = groupSize)
+  groupSize <- 20000
+  filesGroup <- seq(from = 1, to = numberOfLinks, by = groupSize)
   for (i in 1:length(filesGroup)) {
     firstFileInGroup <- filesGroup[i]
     lastFileInGroup <- min(firstFileInGroup + groupSize - 1, numberOfLinks)
@@ -58,9 +58,18 @@ GetWgetFiles <- function() {
     dir.create(subFolderPath)
     print(subFolderName)
     writeLines(newsLinkList[firstFileInGroup:lastFileInGroup], file.path(subFolderPath, "list.urls"))
-    cmdCode <- c('"./wget" -i list.urls')
+    cmdCode <-"..\\wget -i list.urls"
     writeLines(cmdCode, file.path(subFolderPath, "start.cmd"))
   }
 }
 
+# Create folders and cmd files
+Step2 <- function () {
+  GetWgetFiles()
+}
+
 #Step1()
+Step2()
+
+
+
