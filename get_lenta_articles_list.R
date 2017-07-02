@@ -70,10 +70,36 @@ Step2 <- function () {
 
 ## STEP 3 CODE
 # Validation of downloaded files
-ValidateDownloadedFiles <- funcrion() {
-
+ValidateDownloadedFiles <- function() {
+  files <- list.files(file.path(getwd(), "data"), full.names = TRUE, recursive = TRUE, pattern = "index")
+  downloadedLonls <- c()
+  for (i in 1:length(files)) {
+    currentFile <- files[i]
+    pg <- read_html(currentFile, encoding = "UTF-8")
+    fileLink <- html_nodes(pg, xpath=".//link[@rel='canonical']") %>% html_attr("href")   
+    downloadedLonls <- c(downloadedLonls, fileLink)  
+    saveRDS(downloadedLonls, file = "data/tempDownloadedList.rds")
+  }
 }
 
+## STEP 4 CODE
+# Validation of downloaded files
+ParseDownloadedFiles <- function() {
+  files <- list.files(file.path(getwd(), "data"), full.names = TRUE, recursive = TRUE, pattern = "index")
+  downloadedLonls <- c()
+  for (i in 1:length(files)) {
+    currentFile <- files[i]
+    #print(i)
+    #print(currentFile)
+    pg <- read_html(currentFile, encoding = "UTF-8")
+    fileLink <- html_nodes(pg, xpath=".//link[@rel='canonical']") %>% html_attr("href")   
+    downloadedLonls <- c(downloadedLonls, fileLink)  
+    #saveRDS(downloadedLonls, file = "data/tempDownloadedList.rds")
+  }
+  return(downloadedLonls)
+}
 #Step1()
 #Step2()
-Step3()
+#Step3()
+
+
