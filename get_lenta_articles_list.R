@@ -86,6 +86,7 @@ ValidateDownloadedFiles <- function() {
 # Validation of downloaded files
 ParseDownloadedFiles <- function() {
   files <- list.files(file.path(getwd(), "data"), full.names = TRUE, recursive = TRUE, pattern = "index")
+  print(length(files))
   downloadedLonls <- c()
   for (i in 1:length(files)) {
     currentFile <- files[i]
@@ -93,7 +94,6 @@ ParseDownloadedFiles <- function() {
     #print(currentFile)
     pg <- read_html(currentFile, encoding = "UTF-8")
     fileLink <- html_nodes(pg, xpath=".//link[@rel='canonical']") %>% html_attr("href")   
-    downloadedLonls <- c(downloadedLonls, fileLink)  
     #saveRDS(downloadedLonls, file = "data/tempDownloadedList.rds")
   }
   return(downloadedLonls)
