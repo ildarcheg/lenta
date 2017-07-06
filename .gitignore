@@ -2,3 +2,6 @@
 data/
 .Rproj.user
 wget.exe
+.Rhistory
+.DS_Store
+data_ old
