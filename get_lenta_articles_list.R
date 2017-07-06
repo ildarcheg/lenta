@@ -3,6 +3,7 @@ require(rvest)
 require(dplyr)
 require(purrr)
 require(XML)
+require(data.table)
 
 baseURL <- "https://lenta.ru"
 
@@ -55,11 +56,18 @@ Step1 <- function() {
 ## STEP 2 CODE
 # Prepare wget code for pages downloading
 GetWgetFiles <- function() {
-  newsLinkList <- readRDS("data/tempNewsLinkList.rds") 
+  
+  dataFolder <- file.path(getwd(), "data")
+  warcFolder <- file.path(dataFolder, "warc")
+  dir.create(warcFolder)
+  
+  newsLinkList <- readRDS(file.path(dataFolder,"tempNewsLinkList.rds"))
+  
   numberOfLinks <- length(newsLinkList)
   digitNumber <- nchar(numberOfLinks)
-  groupSize <- 20000
+  groupSize <- 10000
   filesGroup <- seq(from = 1, to = numberOfLinks, by = groupSize)
+  cmdCodeAll <- c()
   for (i in 1:length(filesGroup)) {
     firstFileInGroup <- filesGroup[i]
     lastFileInGroup <- min(firstFileInGroup + groupSize - 1, numberOfLinks)
@@ -70,9 +78,11 @@ GetWgetFiles <- function() {
     dir.create(subFolderPath)
     print(subFolderName)
     writeLines(newsLinkList[firstFileInGroup:lastFileInGroup], file.path(subFolderPath, "list.urls"))
-    cmdCode <-"..\\wget -i list.urls"
-    writeLines(cmdCode, file.path(subFolderPath, "start.cmd"))
+    #START "" wget --warc-file=001\lenta -i 000\list.urls -P 001
+    cmdCode <-paste0("START wget --warc-file=warc\\", subFolderName," -i ", subFolderName, "\\", "list.urls -P ", subFolderName)
+    cmdCodeAll <- c(cmdCodeAll, cmdCode)
   }
+  writeLines(cmdCodeAll, file.path(dataFolder, "start.cmd"))
 }
 
 # Create folders and cmd files
@@ -219,7 +229,41 @@ ReadFilesInFolder <- function(folderNumber) {
     dfList[[i]] <- map_df(files[firstFileInGroup:lastFileInGroup], ReadFile)
   }
   df <- bind_rows(dfList)
-  write.csv(df, file.path(dataFolder, paste0("dfs/", folderName, ".csv")))
+  write.csv(df, file.path(dataFolder, paste0("dfs/", folderName, ".csv")), fileEncoding = "UTF-8")
+}
+
+## STEP 4 CODE
+# Validation of downloaded files
+ReadDataFromCSV <- function() {
+  dataFolder <- file.path(getwd(), "data")
+  dfsFolder <- file.path(dataFolder, "dfs")
+  files <- list.files(dfsFolder, full.names = TRUE, recursive = FALSE)
+  filesN <- list.files(dfsFolder, full.names = FALSE, recursive = FALSE)
+  dfList <- list()
+  for (i in 1:length(files)) {
+    file <- files[i]
+    print(file)
+    df <- read.csv(file, encoding = "UTF-8", stringsAsFactors = FALSE)
+    df$folderName <- filesN[i]
+    dfList[[i]] <- df
+  }
+  df <- bind_rows(dfList)
+  write.csv(df, file.path(dataFolder, paste0("mainData.csv")), fileEncoding = "UTF-8")
+}
+
+Validation <- function() {
+  dataFolder <- file.path(getwd(), "data")
+  folders <- list.files(dataFolder, full.names = FALSE, recursive = FALSE, pattern = "-")
+  listURL <- c()
+  for (i in 1:length(folders)) {
+    folderName <- folders[i] 
+    fileListName <- file.path(dataFolder, paste0(folderName,"/list.urls"))
+    x <- readLines(fileListName)
+    listURL <- c(listURL, x)
+  }
+  
+  listURL2 <- listURL[!listURL %in% df$url]
+  
 }
 
 #Step1()
