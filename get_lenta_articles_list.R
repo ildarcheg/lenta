@@ -1,5 +1,8 @@
 require(lubridate)
 require(rvest)
+require(dplyr)
+require(purrr)
+require(XML)
 
 baseURL <- "https://lenta.ru"
 
@@ -84,19 +87,66 @@ ValidateDownloadedFiles <- function() {
 
 ## STEP 4 CODE
 # Validation of downloaded files
+ReadFile <- function(filename) {
+  
+  filename <- files[1]
+  filename <- files[2]
+  
+  pg <- read_html(filename, encoding = "UTF-8")
+  
+  pagetree <-
+    htmlTreeParse(
+      ff,
+      error = function(...) {
+      },
+      useInternalNodes = TRUE,
+      encoding = "UTF-8"
+    )
+  
+  articleBodyNode <- html_nodes(pg, xpath=".//div[@itemprop='articleBody']")
+  plaintext <- html_nodes(articleBodyNode, xpath=".//p") %>% html_text() %>% paste0(collapse="") 
+  plaintextLinks <- html_nodes(articleBodyNode, xpath=".//a") %>% html_attr("href") %>% unique() %>% paste0(collapse=" ")
+  
+  additionalLinks <- html_nodes(pg, xpath=".//section/div[@class='item']/div/..//a") %>% html_attr("href") %>% unique() %>% paste0(collapse=" ")
+  
+  title <- html_text(html_nodes(pg, xpath=".//head/title"))
+  imageNodes <- html_nodes(pg, xpath=".//div[@class='b-topic__title-image']")
+  imageDescription <- html_nodes(imageNodes, xpath="div/div[@class='b-label__caption']") %>% html_text()
+  imageCredits <- html_nodes(imageNodes, xpath="div/div[@class='b-label__credits']") %>% html_text()
+  videoNodes <- html_nodes(pg, xpath=".//div[@class='b-video-box__info']")
+  videoDescription <- html_nodes(videoNodes, xpath="div[@class='b-video-box__caption']") %>% html_text()
+  videoCredits <- html_nodes(videoNodes, xpath="div[@class='b-video-box__credits']") %>% html_text()  
+  
+  url <- html_attr(html_nodes(pg, xpath=".//head/link[@rel='canonical']"), "href")
+  author <- html_text(html_nodes(pg, xpath=".//span[@class='name']"))
+  authorLength <- length(author)
+  if (authorLength==0) {author <- ""}
+  datetime <- html_nodes(pg, xpath=".//time[@class='g-date']") %>% html_attr("datetime")
+  datetime <- datetime[!is.na(datetime)][1]
+  datetimeLength <- length(datetime)
+  if (datetimeLength==0) {datetime <- NA}
+  
+  ##print(paste("Part ", filename))
+  data.frame(url = url, title = title, plaintext = plaintext, author = author, datetime = datetime, stringsAsFactors=FALSE)
+  
+}
+
 ParseDownloadedFiles <- function() {
   files <- list.files(file.path(getwd(), "data"), full.names = TRUE, recursive = TRUE, pattern = "index")
-  print(length(files))
-  downloadedLonls <- c()
-  for (i in 1:length(files)) {
-    currentFile <- files[i]
-    #print(i)
-    #print(currentFile)
-    pg <- read_html(currentFile, encoding = "UTF-8")
-    fileLink <- html_nodes(pg, xpath=".//link[@rel='canonical']") %>% html_attr("href")   
-    #saveRDS(downloadedLonls, file = "data/tempDownloadedList.rds")
+  files <- files[1:800]
+  
+  numberOfFiles <- length(files)
+  print(numberOfFiles)
+  groupSize <- 1000
+  filesGroup <- seq(from = 1, to = numberOfFiles, by = groupSize)
+  dfList <- list()
+  for (i in 1:length(filesGroup)) {
+    firstFileInGroup <- filesGroup[i]
+    lastFileInGroup <- min(firstFileInGroup + groupSize - 1, numberOfFiles)
+    #print(paste("Start", firstFileInGroup, " ", lastFileInGroup))
+    dfList[[i]] <- map_df(files[firstFileInGroup:lastFileInGroup], ReadFile)
   }
-  return(downloadedLonls)
+  dfList
 }
 #Step1()
 #Step2()
