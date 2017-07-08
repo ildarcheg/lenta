@@ -286,4 +286,3 @@ ReadWarcFiles <- function() {
 #warc_file <- file.path(getwd(), "data/lenta.warc")
 
 #responses <- warc_response_index(warc_file)
-
