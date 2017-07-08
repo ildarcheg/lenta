@@ -266,6 +266,25 @@ Validation <- function() {
   
 }
 
+## STEP 5 CODE
+# Combine downloaded files
+GetCMDFilesToCombine <- function() {
+  
+  dataFolder <- file.path(getwd(), "data")
+  folders <- list.files(dataFolder, full.names = FALSE, recursive = FALSE, pattern = "-")
+  cmdFile <- c()
+  for (i in 1:length(folders)) {
+    folderName <- folders[i]
+    currentFolder <- file.path(dataFolder, folderName) 
+    files <- list.files(currentFolder, full.names = TRUE, recursive = FALSE, pattern = "index")
+    fileName <- file.path(dataFolder, paste0("combine/filesInFolder", folderName, ".list"))
+    writeLines(files, fileName)
+    #cat filesInFolder240001-260000.list | xargs -n 32 -P 8 cat >> /Users/ildar/lenta/data/000000.ht
+    fileNameCombine <- file.path(dataFolder, paste0("combine/", folderName, ".combine"))
+    cmdFile <- c(cmdFile, paste0("cat ",fileName, " | xargs -n 32 -P 8 cat >> ", fileNameCombine))
+  }
+  writeLines(cmdFile, file.path(dataFolder, "cmd.run"))
+}
 #Step1()
 #Step2()
 #Step3()

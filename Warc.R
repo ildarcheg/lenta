@@ -14,6 +14,7 @@ ParseHtmlText <- function(dataToParse) {
   
   urlMain <- dataToParse$url 
   print(urlMain)
+  print(dataToParse)
   htmlLines <- dataToParse$htmlLines
   
   pg <- read_html(htmlLines, encoding = "UTF-8")
@@ -102,6 +103,8 @@ ParseHtmlText <- function(dataToParse) {
   # print(videoCredits)
   # print("----")
   
+  ##ВНИМАНИЕ ДОБАВИТЬ РАЗДЕЛЫ
+  ##chapters: ["Наука_и_техника","Космос","lenta.ru:_Наука_и_техника:_Космос:_Роскосмос_увидел_огромного_Путина_с_орбиты"], // Chapters страницы
   data.frame(urlMain = urlMain,
              url = url, 
              datetime = datetime,
