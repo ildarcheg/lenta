@@ -114,6 +114,9 @@ ReadFile <- function(filename) {
   metaType <- html_nodes(pg, xpath=".//meta[@property='og:type']") %>% html_attr("content") %>% SetNAIfZeroLength()
   metaDescription <- html_nodes(pg, xpath=".//meta[@property='og:description']") %>% html_attr("content") %>% SetNAIfZeroLength()
   rubric <- html_nodes(pg, xpath=".//div[@class='b-subheader__title js-nav-opener']") %>% html_text() %>% SetNAIfZeroLength()
+  
+  scriptContent <- html_nodes(pg, xpath=".//script[contains(text(),'chapters: [')]") %>% html_text() %>% strsplit("\n") %>% unlist()
+  chapters <- scriptContent[grep("chapters: ", scriptContent)]
   #numberOfComments <- <span id="comments-count"> 358</span>
   title <- html_nodes(pg, xpath=".//head/title") %>% html_text() %>% SetNAIfZeroLength()
   
@@ -207,6 +210,7 @@ ReadFile <- function(filename) {
              metaType= metaType,
              metaDescription= metaDescription,
              rubric= rubric,
+             chapters = chapters,
              datetime = datetime,
              datetimeString = datetimeString,
              title = title, 
@@ -251,6 +255,20 @@ CreateCMDForParsing <- function() {
   cmdFile <- paste0("start C:/R/R-3.4.0/bin/Rscript.exe C:/Users/ildar/lenta/parse.R ",nn)
   writeLines(cmdFile, "parsing.cmd")
 
+}
+
+UnionData <- function() {
+  dataFolder <- file.path(getwd(), "data")
+  dfsFolder <- file.path(getwd(), "data/dfs")
+  files <- list.files(dfsFolder, full.names = TRUE, recursive = FALSE)
+  dfList <- c()
+  for (i in 1:length(files)) {
+    file <- files[i]
+    print(file)
+    dfList[[i]] <- read.csv(file, stringsAsFactors = FALSE, encoding = "UTF-8")
+  }
+  df <- bind_rows(dfList)
+  write.csv(df, file.path(dataFolder, "untidy_articles_data.csv"), fileEncoding = "UTF-8")
 }
 
 test <- function(k) {
