@@ -17,7 +17,8 @@ ParseHtmlText <- function(dataToParse) {
   print(dataToParse)
   htmlLines <- dataToParse$htmlLines
   
-  pg <- read_html(htmlLines, encoding = "UTF-8")
+  #pg <- read_html(htmlLines, encoding = "UTF-8")
+  pg <- tryCatch(read_html(htmlLines, encoding = "UTF-8"), error = function(x) {return(read_html(urlMain, encoding = "UTF-8"))})
   
   title <- html_text(html_nodes(pg, xpath=".//head/title"))
   title <- SetNAIfZeroLength(title)
@@ -285,5 +286,3 @@ ReadWarcFiles <- function() {
 #warc_file <- file.path(getwd(), "data/lenta.warc")
 
 #responses <- warc_response_index(warc_file)
-
-# TEST CODE ADDED
