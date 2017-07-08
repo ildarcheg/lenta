@@ -110,9 +110,19 @@ ReadFile <- function(filename) {
   
   pg <- read_html(filename, encoding = "UTF-8")
   
-  title <- html_text(html_nodes(pg, xpath=".//head/title"))
-  title <- SetNAIfZeroLength(title)
+  metaTitle <- html_nodes(pg, xpath=".//meta[@property='og:title']") %>% html_attr("content") %>% SetNAIfZeroLength() 
+  metaType <- html_nodes(pg, xpath=".//meta[@property='og:type']") %>% html_attr("content") %>% SetNAIfZeroLength()
+  metaDescription <- html_nodes(pg, xpath=".//meta[@property='og:description']") %>% html_attr("content") %>% SetNAIfZeroLength()
+  rubric <- html_nodes(pg, xpath=".//div[@class='b-subheader__title js-nav-opener']") %>% html_text() %>% SetNAIfZeroLength()
+  #numberOfComments <- <span id="comments-count"> 358</span>
+  title <- html_nodes(pg, xpath=".//head/title") %>% html_text() %>% SetNAIfZeroLength()
   
+  #shareFB <- html_nodes(pg, xpath=".//div[@data-target='fb']") %>% html_text() %>% SetNAIfZeroLength()
+  #shareVK <- html_nodes(pg, xpath=".//div[@data-target='vk']") %>% html_text() %>% SetNAIfZeroLength()
+  #shareOK <- html_nodes(pg, xpath=".//div[@data-target='ok']") %>% html_text() %>% SetNAIfZeroLength()
+  #shareTW <- html_nodes(pg, xpath=".//div[@data-target='tw']") %>% html_text() %>% SetNAIfZeroLength()
+  #shareLJ <- html_nodes(pg, xpath=".//div[@data-target='LJ']") %>% html_text() %>% SetNAIfZeroLength()
+
   articleBodyNode <- html_nodes(pg, xpath=".//div[@itemprop='articleBody']")
   
   plaintext <- html_nodes(articleBodyNode, xpath=".//p") %>% html_text() %>% paste0(collapse="") 
@@ -130,71 +140,73 @@ ReadFile <- function(filename) {
   }
   
   imageNodes <- html_nodes(pg, xpath=".//div[@class='b-topic__title-image']")
-  imageDescription <- html_nodes(imageNodes, xpath="div/div[@class='b-label__caption']") %>% html_text() %>% unique() 
-  imageDescription <- SetNAIfZeroLength(imageDescription)
-  imageCredits <- html_nodes(imageNodes, xpath="div/div[@class='b-label__credits']") %>% html_text() %>% unique() 
-  imageCredits <- SetNAIfZeroLength(imageCredits)
+  imageDescription <- html_nodes(imageNodes, xpath="div//div[@class='b-label__caption']") %>% html_text() %>% unique() %>% SetNAIfZeroLength()
+  imageCredits <- html_nodes(imageNodes, xpath="div//div[@class='b-label__credits']") %>% html_text() %>% unique() %>% SetNAIfZeroLength() 
   
   if (is.na(imageDescription)&is.na(imageCredits)) {
-  videoNodes <- html_nodes(pg, xpath=".//div[@class='b-video-box__info']")
-  videoDescription <- html_nodes(videoNodes, xpath="div[@class='b-video-box__caption']") %>% html_text() %>% unique() 
-  videoDescription <- SetNAIfZeroLength(videoDescription)
-  videoCredits <- html_nodes(videoNodes, xpath="div[@class='b-video-box__credits']") %>% html_text() %>% unique() 
-  videoCredits <- SetNAIfZeroLength(videoCredits)
+    videoNodes <- html_nodes(pg, xpath=".//div[@class='b-video-box__info']")
+    videoDescription <- html_nodes(videoNodes, xpath="div[@class='b-video-box__caption']") %>% html_text() %>% unique() %>% SetNAIfZeroLength()
+    videoCredits <- html_nodes(videoNodes, xpath="div[@class='b-video-box__credits']") %>% html_text() %>% unique() %>% SetNAIfZeroLength() 
   } else {
     videoDescription <- NA
     videoCredits <- NA
   }
   
-  url <- html_attr(html_nodes(pg, xpath=".//head/link[@rel='canonical']"), "href")
-  url <- SetNAIfZeroLength(url)
+  url <- html_nodes(pg, xpath=".//head/link[@rel='canonical']") %>% html_attr("href") %>% SetNAIfZeroLength()
   
   authorSection <- html_nodes(pg, xpath=".//p[@class='b-topic__content__author']")
-  authors <- html_nodes(authorSection, xpath="//span[@class='name']") %>% html_text()
-  authors <- SetNAIfZeroLength(authors)
+  authors <- html_nodes(authorSection, xpath="//span[@class='name']") %>% html_text() %>% SetNAIfZeroLength()
   if (length(authors) > 1) {
     authors <- paste0(authors, collapse = ",")
   }
-  authorLinks <- html_nodes(authorSection, xpath="a") %>% html_attr("href")
-  authorLinks <- SetNAIfZeroLength(authorLinks)
+  authorLinks <- html_nodes(authorSection, xpath="a") %>% html_attr("href") %>% SetNAIfZeroLength()
   if (length(authorLinks) > 1) {
     authorLinks <- paste0(authorLinks, collapse = ",")
   }
   
   #itemprop="datePublished"
   #.//time[@class='g-date']
-  datetimeString <- html_nodes(pg, xpath=".//div[@class='b-topic__info']/time[@class='g-date']") %>% html_text() %>% unique()
-  datetimeString <- SetNAIfZeroLength(datetimeString)
-  
-  datetime <- html_nodes(pg, xpath=".//div[@class='b-topic__info']/time[@class='g-date']") %>% html_attr("datetime") %>% unique()
-  datetime <- SetNAIfZeroLength(datetime)
-  
-  # print(paste("Part ", filename))
-  # print("-")
-  # print(url)
-  # print("-")
-  # print(datetime)
-  # print("-")
-  # print(datetimeString)
-  # print("-")
-  # print(title)
-  # print("-")
-  # print(authors)
-  # print("-")
-  # print(authorLinks)
-  # print("-")
-  # print(additionalLinks)
-  # print("-")
-  # print(imageDescription)
-  # print("-")
-  # print(imageCredits)
-  # print("-")
-  # print(videoDescription)
-  # print("-")
-  # print(videoCredits)
-  # print("----")
-  
+  datetimeString <- html_nodes(pg, xpath=".//div[@class='b-topic__info']/time[@class='g-date']") %>% html_text() %>% unique() %>% SetNAIfZeroLength()
+  datetime <- html_nodes(pg, xpath=".//div[@class='b-topic__info']/time[@class='g-date']") %>% html_attr("datetime") %>% unique() %>% SetNAIfZeroLength()
+
+   #print(paste("-----Part ", filename))
+   #print("-url")
+   #print(url)
+   #print("-metaTitle")
+   #print(metaTitle)
+   #print("-metaType")
+   #print(metaType)
+   #print("-metaDescription")
+   #print(metaDescription)
+   #print("-rubric")
+   #print(rubric)
+   #print("-datetime")
+   #print(datetime)
+   #print("-datetimeString")
+   #print(datetimeString)
+   #print("-title")
+   #print(title)
+   #print("-authors")
+   #print(authors)
+   #print("-authorLinks")
+   #print(authorLinks)
+   #print("-additionalLinks")
+   #print(additionalLinks)
+   #print("-imageDescription")
+   #print(imageDescription)
+   #print("-imageCredits")
+   #print(imageCredits)
+   #print("-videoDescription")
+   #print(videoDescription)
+   #print("-videoCredits")
+   #print(videoCredits)
+   #print("----")
+
   data.frame(url = url, 
+             metaTitle= metaTitle,
+             metaType= metaType,
+             metaDescription= metaDescription,
+             rubric= rubric,
              datetime = datetime,
              datetimeString = datetimeString,
              title = title, 
@@ -231,6 +243,20 @@ ReadFilesInFolder <- function(folderNumber) {
   df <- bind_rows(dfList)
   write.csv(df, file.path(dataFolder, paste0("dfs/", folderName, ".csv")), fileEncoding = "UTF-8")
 }
+
+CreateCMDForParsing <- function() {
+  dataFolder <- file.path(getwd(), "data")
+  folders <- list.files(dataFolder, full.names = FALSE, recursive = FALSE, pattern = "-")
+  nn <- 1:length(folders)
+  cmdFile <- paste0("start C:/R/R-3.4.0/bin/Rscript.exe C:/Users/ildar/lenta/parse.R ",nn)
+  writeLines(cmdFile, "parsing.cmd")
+
+}
+
+test <- function(k) {
+print(k)
+}
+
 
 ## STEP 4 CODE
 # Validation of downloaded files
