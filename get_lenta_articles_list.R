@@ -178,7 +178,9 @@ ReadFile <- function(filename) {
   #.//time[@class='g-date']
   datetimeString <- html_nodes(pg, xpath=".//div[@class='b-topic__info']/time[@class='g-date']") %>% html_text() %>% unique() %>% SetNAIfZeroLength()
   datetime <- html_nodes(pg, xpath=".//div[@class='b-topic__info']/time[@class='g-date']") %>% html_attr("datetime") %>% unique() %>% SetNAIfZeroLength()
- 
+  if (is.na(datetimeString)) {
+    datetimeString <- html_nodes(pg, xpath=".//div[@class='b-topic__date']") %>% html_text() %>% unique() %>% SetNAIfZeroLength()
+  }
    #print(paste("-----Part ", filename))
    #print("-url")
    #print(url)
