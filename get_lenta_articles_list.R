@@ -167,11 +167,11 @@ ReadFile <- function(filename) {
   authorSection <- html_nodes(pg, xpath=".//p[@class='b-topic__content__author']")
   authors <- html_nodes(authorSection, xpath="//span[@class='name']") %>% html_text() %>% SetNAIfZeroLength()
   if (length(authors) > 1) {
-    authors <- paste0(authors, collapse = ",")
+    authors <- paste0(authors, collapse = "|")
   }
   authorLinks <- html_nodes(authorSection, xpath="a") %>% html_attr("href") %>% SetNAIfZeroLength()
   if (length(authorLinks) > 1) {
-    authorLinks <- paste0(authorLinks, collapse = ",")
+    authorLinks <- paste0(authorLinks, collapse = "|")
   }
   
   #itemprop="datePublished"
