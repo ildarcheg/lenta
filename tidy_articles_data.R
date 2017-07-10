@@ -13,8 +13,12 @@ setwd(workingDirectory)
 
 TityData <- function() {
   dataFolder <- file.path(getwd(), "data")
-  df <- read.csv(file.path(dataFolder, "untidy_articles_data.csv"), stringsAsFactors = FALSE, encoding = "UTF-8")
-  dt <- as.tbl(df)
-  dt
+  dfM <- read.csv(file.path(dataFolder, "untidy_articles_data.csv"), stringsAsFactors = FALSE, encoding = "UTF-8")
+  
+  dtM <- as.tbl(dfM)
+  dtD <- dtM %>% select(-X.1,-X) %>% distinct(url, .keep_all=TRUE) 
+  
+    
+  na.omit(dtD,cols="url")
   
 }
