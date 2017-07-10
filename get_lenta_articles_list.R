@@ -116,7 +116,14 @@ ReadFile <- function(filename) {
   rubric <- html_nodes(pg, xpath=".//div[@class='b-subheader__title js-nav-opener']") %>% html_text() %>% SetNAIfZeroLength()
   
   scriptContent <- html_nodes(pg, xpath=".//script[contains(text(),'chapters: [')]") %>% html_text() %>% strsplit("\n") %>% unlist()
-  chapters <- scriptContent[grep("chapters: ", scriptContent)]
+  if (is.null(scriptContent[1])) {
+    chapters <- NA
+  } else if (is.na(scriptContent[1])) {
+    chapters <- NA
+  } else {
+    chapters <- scriptContent[grep("chapters: ", scriptContent)] %>% unique()
+  }
+   
   #numberOfComments <- <span id="comments-count"> 358</span>
   title <- html_nodes(pg, xpath=".//head/title") %>% html_text() %>% SetNAIfZeroLength()
   
@@ -171,7 +178,7 @@ ReadFile <- function(filename) {
   #.//time[@class='g-date']
   datetimeString <- html_nodes(pg, xpath=".//div[@class='b-topic__info']/time[@class='g-date']") %>% html_text() %>% unique() %>% SetNAIfZeroLength()
   datetime <- html_nodes(pg, xpath=".//div[@class='b-topic__info']/time[@class='g-date']") %>% html_attr("datetime") %>% unique() %>% SetNAIfZeroLength()
-
+ 
    #print(paste("-----Part ", filename))
    #print("-url")
    #print(url)
@@ -205,7 +212,8 @@ ReadFile <- function(filename) {
    #print(videoCredits)
    #print("----")
 
-  data.frame(url = url, 
+  data.frame(url = url,
+             filename = filename, 
              metaTitle= metaTitle,
              metaType= metaType,
              metaDescription= metaDescription,
@@ -218,10 +226,10 @@ ReadFile <- function(filename) {
              authors = authors, 
              authorLinks = authorLinks,
              additionalLinks = additionalLinks, 
-             imageDescription,
-             imageCredits,
-             videoDescription,
-             videoCredits,
+             imageDescription = imageDescription,
+             imageCredits = imageCredits,
+             videoDescription = videoDescription,
+             videoCredits = videoCredits,
              stringsAsFactors=FALSE)
   
 }
