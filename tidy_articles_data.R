@@ -1,5 +1,7 @@
 require(lubridate)
 require(dplyr)
+require(tidyr)
+require(data.table)
 
 Sys.setlocale("LC_ALL", "ru_RU.UTF-8")
 
@@ -13,12 +15,81 @@ setwd(workingDirectory)
 
 TityData <- function() {
   dataFolder <- file.path(getwd(), "data")
-  dfM <- read.csv(file.path(dataFolder, "untidy_articles_data.csv"), stringsAsFactors = FALSE, encoding = "UTF-8")
+  dfM <- fread(file.path(dataFolder, "untidy_articles_data.csv"), stringsAsFactors = FALSE, encoding = "UTF-8")
   
-  dtM <- as.tbl(dfM)
-  dtD <- dtM %>% select(-X.1,-X) %>% distinct(url, .keep_all=TRUE) 
+  dtD <- dfM %>% 
+    select(-V1,-X)  %>% 
+    distinct(url, .keep_all=TRUE) %>% 
+    na.omit(cols="url")
   
+  splitChapters <- function(x) {
+    splitOne <- strsplit(x, "lenta.ru:_")[[1]]
+    splitLeft <- strsplit(splitOne[1], ",")[[1]]
+    splitLeft <- unlist(strsplit(splitLeft, ":_"))
+    splitRight <- strsplit(splitOne[2], ":_")[[1]]
+    splitRight <- splitRight[splitRight %in% splitLeft]
+    splitRight <- gsub("_", " ", splitRight)
+    paste0(splitRight, collapse = "|")
+  }
+  
+  dtD <- dtD %>% 
+    mutate(chapters = gsub('\"|\\[|\\]| |chapters:', "", chapters)) %>%
+    select(-rubric) %>%
+    mutate(chaptersFormatted = as.character(sapply(chapters, splitChapters))) %>%
+    separate(col = "chaptersFormatted", into = c("rubric", "subrubric")
+             , sep = "\\|", extra = "drop", fill = "right", remove = FALSE) %>%
+    filter(!rubric == "NA") %>%
+    select(-chapters, -chaptersFormatted) 
+  
+  pattern <- 'Фото: |Фото |Кадр: |Изображение: |, архив|(архив)|©|«|»|\\(|)|\"'
+  dtD <- dtD %>% 
+    mutate(imageCredits = gsub(pattern, "", imageCredits)) %>%
+    separate(col = "imageCredits", into = c("imageCreditsPerson", "imageCreditsCompany")
+             , sep = "/", extra = "drop", fill = "left", remove = FALSE) %>%
+    mutate(imageCreditsPerson = as.character(sapply(imageCreditsPerson, trimws))) %>%
+    mutate(imageCreditsCompany = as.character(sapply(imageCreditsCompany, trimws))) %>%
+    select(-imageCredits)
+  
+  months <- c("января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря")
+  updateDatetime <- function (datetime, datetimeString, url) {
+    #print(datetimeString)
+    datetimeNew <- datetime
+    if (is.na(datetime)) { 
+      if (is.na(datetimeString)) {
+        parsedURL <- strsplit(url, "/")[[1]]
+        parsedURLLength <- length(parsedURL)
+        d <- parsedURL[parsedURLLength-1]
+        m <- parsedURL[parsedURLLength-2]
+        y <- parsedURL[parsedURLLength-3] 
+        H <- round(runif(1, 8, 21))
+        M <- round(runif(1, 1, 59))
+        S <- 0
+        datetimeString <- paste0(paste0(c(y, m, d), collapse = "-"), " ", paste0(c(H, M, S), collapse = ":"))
+        datetimeNew <- ymd_hms(datetimeString, tz = "Europe/Moscow", quiet = TRUE)
+      } else {
+        parsedDatetimeString <- unlist(strsplit(datetimeString, ",")) %>% trimws %>% strsplit(" ") %>% unlist()
+        monthNumber <- which(grepl(parsedDatetimeString[3], months))
+        datetimeString <- paste0(paste0(c(parsedDatetimeString[4], monthNumber, parsedDatetimeString[2]), collapse = "-"), " ", parsedDatetimeString[1], ":00")
+        datetimeNew <- ymd_hms(datetimeString, tz = "Europe/Moscow", quiet = TRUE)
+      }
+    }  
+    #print(datetimeNew)
+    datetimeNew
+  }
+  
+  dtD <- dtD %>% 
+    mutate(datetime = ymd_hms(datetime, tz = "Europe/Moscow", quiet = TRUE)) %>% 
+    mutate(datetimeNew = mapply(updateDatetime, datetime, datetimeString, url)) %>%
+    mutate(datetime = as.POSIXct(datetimeNew, tz = "Europe/Moscow",origin = "1970-01-01"))
+
+  dtD <- dtD %>%
+    as.data.table() %>%
+    na.omit(cols="datetime") %>%
+    select(-filename, -title, -metaType, -datetimeString, -datetimeNew) %>%
+    rename(title = metaTitle) %>%
+    select(url, datetime, rubric, subrubric, title, metaDescription, plaintext, 
+           authorLinks, additionalLinks, imageDescription, imageCreditsPerson,
+           imageCreditsCompany, videoDescription, videoCredits)
     
-  na.omit(dtD,cols="url")
-  
+    
 }
