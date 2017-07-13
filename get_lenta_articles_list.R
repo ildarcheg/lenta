@@ -227,6 +227,7 @@ ReadFile <- function(filename) {
              plaintext = plaintext, 
              authors = authors, 
              authorLinks = authorLinks,
+             plaintextLinks = plaintextLinks,
              additionalLinks = additionalLinks, 
              imageDescription = imageDescription,
              imageCredits = imageCredits,
