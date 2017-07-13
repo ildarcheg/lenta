@@ -2,6 +2,9 @@ require(lubridate)
 require(dplyr)
 require(tidyr)
 require(data.table)
+require(tldextract)
+require(urltools)
+require(XML)
 
 Sys.setlocale("LC_ALL", "ru_RU.UTF-8")
 
@@ -91,5 +94,44 @@ TityData <- function() {
            authorLinks, additionalLinks, imageDescription, imageCreditsPerson,
            imageCreditsCompany, videoDescription, videoCredits)
     
+  updateAdditionalLinks <- function(additionalLinks, url, log) {
+    if (is.na(additionalLinks)) {
+      return(NA)
+    }
+    if (log == TRUE) {
+      print(url)
+      print("---")
+      print(additionalLinks)
+    }
+    additionalLinksSplitted <- unlist(strsplit(additionalLinks, " "))
+    additionalLinksSplitted <- additionalLinksSplitted[!grepl("lenta.ru", additionalLinksSplitted)]
+    additionalLinksSplitted <- unlist(strsplit(additionalLinksSplitted, "/[^/]*$"))
+    additionalLinksSplitted <- gsub("href=|-–-", "", additionalLinksSplitted)
+    additionalLinksSplitted <- gsub("[а-я|А-Я]", "eng", additionalLinksSplitted)
+    #additionalLinksSplitted <- gsub("-–-|\\[|\\]|’|html.|href=|\\|", "", additionalLinksSplitted)
+    additionalLinksSplitted <- gsub("http://http://|https://https://", "http://", additionalLinksSplitted)
+    additionalLinksSplitted <- additionalLinksSplitted[grepl("http:|https:", additionalLinksSplitted)]
     
+    if (!length(additionalLinksSplitted) == 0) {
+      URLSplitted <- tryCatch(sapply(additionalLinksSplitted, parseURI), error = function(x) {return(NA)})
+      if (is.na(URLSplitted[1])) {
+        print("------")
+        print(additionalLinks)
+        print(additionalLinksSplitted)
+        return(NA)
+      }
+      URLSplitted <- unlist(URLSplitted["server",])
+      domain <- paste0(tldextract(URLSplitted)$domain, ".", 
+                       tldextract(URLSplitted)$tld)
+      paste0(domain, collapse = " ")
+    } else {
+      NA
+    }
+  }
+  
+  dtD1 <- dtD
+  
+  dt1 <- dtD1[, c("additionalLinks")] %>%
+    mutate(additionalLinks = mapply(updateAdditionalLinks, additionalLinks, url, FALSE))
+
 }
