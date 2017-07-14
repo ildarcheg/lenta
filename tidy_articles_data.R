@@ -91,7 +91,7 @@ TityData <- function() {
     select(-filename, -title, -metaType, -datetimeString, -datetimeNew) %>%
     rename(title = metaTitle) %>%
     select(url, datetime, rubric, subrubric, title, metaDescription, plaintext, 
-           authorLinks, additionalLinks, imageDescription, imageCreditsPerson,
+           authorLinks, additionalLinks, plaintextLinks, imageDescription, imageCreditsPerson,
            imageCreditsCompany, videoDescription, videoCredits)
     
   updateAdditionalLinks <- function(additionalLinks, url, log) {
@@ -131,7 +131,7 @@ TityData <- function() {
   
   dtD1 <- dtD
   
-  dt1 <- dtD1[, c("additionalLinks")] %>%
+  dt1 <- dtD1[1:100, c("additionalLinks")] %>%
     mutate(additionalLinks = mapply(updateAdditionalLinks, additionalLinks, url, FALSE))
 
 }
