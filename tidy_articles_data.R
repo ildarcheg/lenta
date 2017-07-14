@@ -94,10 +94,12 @@ TityData <- function() {
            authorLinks, additionalLinks, plaintextLinks, imageDescription, imageCreditsPerson,
            imageCreditsCompany, videoDescription, videoCredits)
     
-  updateAdditionalLinks <- function(additionalLinks, url, log) {
+     
+  updateAdditionalLinks <- function(additionalLinks) {
     if (is.na(additionalLinks)) {
       return(NA)
     }
+    log <- FALSE
     if (log == TRUE) {
       print(url)
       print("---")
@@ -106,7 +108,7 @@ TityData <- function() {
     additionalLinksSplitted <- unlist(strsplit(additionalLinks, " "))
     additionalLinksSplitted <- additionalLinksSplitted[!grepl("lenta.ru", additionalLinksSplitted)]
     additionalLinksSplitted <- unlist(strsplit(additionalLinksSplitted, "/[^/]*$"))
-    additionalLinksSplitted <- gsub("href=|-–-", "", additionalLinksSplitted)
+    additionalLinksSplitted <- gsub("href=|-–-|«|»|…|,", "", additionalLinksSplitted)
     additionalLinksSplitted <- gsub("[а-я|А-Я]", "eng", additionalLinksSplitted)
     #additionalLinksSplitted <- gsub("-–-|\\[|\\]|’|html.|href=|\\|", "", additionalLinksSplitted)
     additionalLinksSplitted <- gsub("http://http://|https://https://", "http://", additionalLinksSplitted)
@@ -129,9 +131,16 @@ TityData <- function() {
     }
   }
   
-  dtD1 <- dtD
+  dtD1 <- as.tbl(dtD)
   
-  dt1 <- dtD1[1:100, c("additionalLinks")] %>%
-    mutate(additionalLinks = mapply(updateAdditionalLinks, additionalLinks, url, FALSE))
+  print(Sys.time())
+  system.time(dt1 <- dtD1[100001:200000, c("additionalLinks")] %>%
+    mutate(additionalLinks = mapply(updateAdditionalLinks, additionalLinks)))
+  print(Sys.time())
+  system.time(dt1 <- dtD1[200001:300000, c("additionalLinks")] %>%
+    mutate(additionalLinks = mapply(updateAdditionalLinks, additionalLinks)))
+  print(Sys.time())
+  system.time(dt1 <- dtD1[300001:400000, c("additionalLinks")] %>%
+    mutate(additionalLinks = mapply(updateAdditionalLinks, additionalLinks)))
 
 }
