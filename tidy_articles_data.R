@@ -3,7 +3,6 @@ require(dplyr)
 require(tidyr)
 require(data.table)
 require(tldextract)
-require(urltools)
 require(XML)
 
 Sys.setlocale("LC_ALL", "ru_RU.UTF-8")
@@ -84,7 +83,7 @@ TityData <- function() {
     mutate(datetime = ymd_hms(datetime, tz = "Europe/Moscow", quiet = TRUE)) %>% 
     mutate(datetimeNew = mapply(updateDatetime, datetime, datetimeString, url)) %>%
     mutate(datetime = as.POSIXct(datetimeNew, tz = "Europe/Moscow",origin = "1970-01-01"))
-
+  
   dtD <- dtD %>%
     as.data.table() %>%
     na.omit(cols="datetime") %>%
@@ -93,54 +92,100 @@ TityData <- function() {
     select(url, datetime, rubric, subrubric, title, metaDescription, plaintext, 
            authorLinks, additionalLinks, plaintextLinks, imageDescription, imageCreditsPerson,
            imageCreditsCompany, videoDescription, videoCredits)
-    
-     
-  updateAdditionalLinks <- function(additionalLinks) {
+  
+  
+  updateAdditionalLinks <- function(additionalLinks, url) {
     if (is.na(additionalLinks)) {
       return(NA)
     }
-    log <- FALSE
-    if (log == TRUE) {
-      print(url)
-      print("---")
-      print(additionalLinks)
-    }
-    additionalLinksSplitted <- unlist(strsplit(additionalLinks, " "))
-    additionalLinksSplitted <- additionalLinksSplitted[!grepl("lenta.ru", additionalLinksSplitted)]
+    
+    additionalLinksSplitted <- gsub("http://|https://|http:///|https:///"," ", additionalLinks)
+    additionalLinksSplitted <- gsub("http:/|https:/|htt://","", additionalLinksSplitted)
+    additionalLinksSplitted <- trimws(additionalLinksSplitted)
+    additionalLinksSplitted <- unlist(strsplit(additionalLinksSplitted, " "))
+    additionalLinksSplitted <- additionalLinksSplitted[!additionalLinksSplitted==""]
+    additionalLinksSplitted <- additionalLinksSplitted[!grepl("lenta.", additionalLinksSplitted)]
     additionalLinksSplitted <- unlist(strsplit(additionalLinksSplitted, "/[^/]*$"))
-    additionalLinksSplitted <- gsub("href=|-–-|«|»|…|,", "", additionalLinksSplitted)
-    additionalLinksSplitted <- gsub("[а-я|А-Я]", "eng", additionalLinksSplitted)
-    #additionalLinksSplitted <- gsub("-–-|\\[|\\]|’|html.|href=|\\|", "", additionalLinksSplitted)
-    additionalLinksSplitted <- gsub("http://http://|https://https://", "http://", additionalLinksSplitted)
+    additionalLinksSplitted <- paste0("http://", additionalLinksSplitted)
     additionalLinksSplitted <- additionalLinksSplitted[grepl("http:|https:", additionalLinksSplitted)]
     
     if (!length(additionalLinksSplitted) == 0) {
-      URLSplitted <- tryCatch(sapply(additionalLinksSplitted, parseURI), error = function(x) {return(NA)})
-      if (is.na(URLSplitted[1])) {
-        print("------")
-        print(additionalLinks)
-        print(additionalLinksSplitted)
-        return(NA)
+      URLSplitted <- c()
+      for(i in 1:length(additionalLinksSplitted)) {
+        parsed <- tryCatch(parseURI(additionalLinksSplitted[i]), error = function(x) {return(NA)}) 
+        parsedURL <- parsed["server"]
+        if (!is.na(parsedURL)) {
+          URLSplitted <- c(URLSplitted, parsedURL) 
+        }
       }
-      URLSplitted <- unlist(URLSplitted["server",])
-      domain <- paste0(tldextract(URLSplitted)$domain, ".", 
-                       tldextract(URLSplitted)$tld)
-      paste0(domain, collapse = " ")
+      if (length(URLSplitted)==0){
+        NA
+      } else {
+        URLSplitted <- URLSplitted[!is.na(URLSplitted)]
+        paste0(URLSplitted, collapse = " ")
+      }
+      #domain <- paste0(tldextract(URLSplitted)$domain, ".", 
+      #                 tldextract(URLSplitted)$tld)
+      #return(NA)
+      #paste0(domain, collapse = " ")
     } else {
       NA
     }
   }
   
-  dtD1 <- as.tbl(dtD)
+  updateAdditionalLinksDomain <- function(additionalLinks, url) {
+    if (is.na(additionalLinks)|(additionalLinks=="NA")) {
+      return(NA)
+    }
+    additionalLinksSplitted <- unlist(strsplit(additionalLinks, " "))
+    if (!length(additionalLinksSplitted) == 0) {
+      parsedDomain <- tryCatch(tldextract(additionalLinksSplitted), error = function(x) {data_frame(domain = NA, tld = NA)}) 
+      parsedDomain <- parsedDomain[!is.na(parsedDomain$domain), ]
+      if (nrow(parsedDomain)==0) {
+        #print("--------")
+        #print(additionalLinks)
+        return(NA)
+      }
+      domain <- paste0(parsedDomain$domain, ".", parsedDomain$tld)
+      domain <- unique(domain)
+      domain <- paste0(domain, collapse = " ")
+      return(domain)
+    } else {
+      return(NA)
+    }
+  }
   
-  print(Sys.time())
-  system.time(dt1 <- dtD1[100001:200000, c("additionalLinks")] %>%
-    mutate(additionalLinks = mapply(updateAdditionalLinks, additionalLinks)))
-  print(Sys.time())
-  system.time(dt1 <- dtD1[200001:300000, c("additionalLinks")] %>%
-    mutate(additionalLinks = mapply(updateAdditionalLinks, additionalLinks)))
-  print(Sys.time())
-  system.time(dt1 <- dtD1[300001:400000, c("additionalLinks")] %>%
-    mutate(additionalLinks = mapply(updateAdditionalLinks, additionalLinks)))
-
+  symbolsToRemove <- "href=|-–-|«|»|…|,|•|“|”|\n|\"|,|[|]|<a|<br" 
+  symbolsHttp <- "http:\\\\\\\\|:http://|-http://|.http://"
+  symbolsHttp2 <- "http://http://|https://https://"
+  symbolsReplace <- "[а-я|А-Я|#!]"
+  
+  dtD <- dtD %>% 
+    mutate(plaintextLinks = gsub(symbolsToRemove,"", plaintextLinks)) %>%
+    mutate(plaintextLinks = gsub(symbolsHttp, "http://", plaintextLinks)) %>%
+    mutate(plaintextLinks = gsub(symbolsReplace, "e", plaintextLinks)) %>%
+    mutate(plaintextLinks = gsub(symbolsHttp2, "http://", plaintextLinks)) %>%
+    mutate(additionalLinks = gsub(symbolsToRemove,"", additionalLinks)) %>%
+    mutate(additionalLinks = gsub(symbolsHttp, "http://", additionalLinks)) %>%
+    mutate(additionalLinks = gsub(symbolsReplace, "e", additionalLinks)) %>%
+    mutate(additionalLinks = gsub(symbolsHttp2, "http://", additionalLinks)) %>%
+    mutate(plaintextLinks = mapply(updateAdditionalLinks, plaintextLinks, url)) %>%
+    mutate(additionalLinks = mapply(updateAdditionalLinks, additionalLinks, url))
+  
+  numberOfLinks <- nrow(dtD)
+  groupSize <- 10000
+  groupsN <- seq(from = 1, to = numberOfLinks, by = groupSize)
+  
+  for (i in 1:length(groupsN)) {
+    n1 <- groupsN[i]
+    n2 <- min(n1 + groupSize - 1, numberOfLinks) 
+    print(paste0(n1, "-", n2))
+    dtD$additionalLinks[n1:n2] <- mapply(updateAdditionalLinksDomain, dtD$additionalLinks[n1:n2], dtD$url[n1:n2])
+    print(unique(dtD$additionalLinks[n1:n2]))
+    dtD$plaintextLinks[n1:n2] <- mapply(updateAdditionalLinksDomain, dtD$plaintextLinks[n1:n2], dtD$url[n1:n2])
+    print(unique(dtD$plaintextLinks[n1:n2]))    
+  }
+  
+  write.csv(file.path(dataFolder, "tidy_articles_data.csv"),encoding = "UTF-8")
+  
 }
