@@ -186,6 +186,6 @@ TityData <- function() {
     print(unique(dtD$plaintextLinks[n1:n2]))    
   }
   
-  write.csv(file.path(dataFolder, "tidy_articles_data.csv"),encoding = "UTF-8")
+  write.csv(dtD, file.path(dataFolder, "tidy_articles_data.csv"), fileEncoding = "UTF-8")
   
 }
