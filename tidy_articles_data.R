@@ -17,10 +17,10 @@ setwd(workingDirectory)
 
 # Set common variables
 parsedArticlesFolder <- file.path(getwd(), "parsed_articles")
-tidiedArticlesFolder <- file.path(getwd(), "tidied_articles")
+tidyArticlesFolder <- file.path(getwd(), "tidy_articles")
 
 # Creare required folders if not exist 
-dir.create(tidiedArticlesFolder, showWarnings = FALSE)
+dir.create(tidyArticlesFolder, showWarnings = FALSE)
 
 ## STEP 5. Clear and tidy data
 # 
@@ -232,6 +232,6 @@ TityData <- function() {
     print(unique(dtD$plaintextLinks[n1:n2]))    
   }
   
-  write.csv(dtD, file.path(tidiedArticlesFolder, "tidy_articles_data.csv"), fileEncoding = "UTF-8")
+  write.csv(dtD, file.path(tidyArticlesFolder, "tidy_articles_data.csv"), fileEncoding = "UTF-8")
   
 }
