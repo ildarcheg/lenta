@@ -21,8 +21,8 @@ baseURL <- "https://lenta.ru"
 tempDataFolder <- file.path(getwd(), "temp_data")
 downloadedArticlesFolder <- file.path(getwd(), "downloaded_articles")
 parsedArticlesFolder <- file.path(getwd(), "parsed_articles")
-dfsFolder <- file.path(dataFolder, "dfs")
-commandsFolder <- file.path(dataFolder, "commands")
+dfsFolder <- file.path(tempDataFolder, "dfs")
+commandsFolder <- file.path(tempDataFolder, "commands")
 
 articlesStartDate <- as.Date("2010-01-01")
 articlesEndDate <- as.Date("2017-06-30")
@@ -60,7 +60,7 @@ GetNewsListForPeriod <- function() {
     pg <- read_html(linksList[i], encoding = "UTF-8")
     total <- html_nodes(pg, xpath=".//section[@class='b-longgrid-column']//div[@class='titles']//a") %>% html_attr("href")   
     newsList <- c(newsList, total)
-    saveRDS(newsList, file = "data/tempNewsList.rds")
+    saveRDS(newsList, file.path(tempDataFolder, "tempNewsList.rds"))
   }
   newsList <- paste0(baseURL, newsList)
   write.csv(newsList, file.path(tempDataFolder, "tempNewsLinkList.rds"))
