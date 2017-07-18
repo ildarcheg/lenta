@@ -97,13 +97,15 @@ GetWgetCMDFiles <- function() {
     
     # add command line in CMD file as:
     # START wget --warc-file=warc\000001-010000 -i 000001-010000\list.urls -P 000001-010000
-    cmdCode <-paste0("START wget --warc-file=warc\\", subFolderName," -i ", subFolderName, "\\", "articles.urls -P ", subFolderName)
+    cmdCode <-paste0("START ..\\wget --warc-file=warc\\", subFolderName," -i ", subFolderName, "\\", "articles.urls -P ", subFolderName)
     cmdCodeAll <- c(cmdCodeAll, cmdCode)
   }
   
   cmdFile <- file.path(downloadedArticlesFolder, "start.cmd")
   writeLines(cmdCodeAll, cmdFile)
   print(paste0("Run ", cmdFile, " to start downloading."))
+  print("wget.exe should be placed in working directory.")
+  
 }
 
 # Create folders and cmd files
