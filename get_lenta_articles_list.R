@@ -42,8 +42,8 @@ SetNAIfZeroLength <- function(param) {
   return(param)
 }
 
-## STEP 1
-# dowload list of pages with archived articles. Takes about 40 minutes.
+## STEP 1. Prepare articles links list
+# Dowload list of pages with archived articles. Takes about 40 minutes
 GetNewsListForPeriod <- function() {
   
   # prepare vector of links of archive pages in https://lenta.ru//yyyy/mm/dd/ format
@@ -66,9 +66,9 @@ GetNewsListForPeriod <- function() {
   writeLines(articlesLinks, file.path(tempDataFolder, "articles.urls"))
 }
 
-## STEP 2 CODE
-# Prepare wget CMD files for parallel downloading
-GetWgetCMDFiles <- function() {
+## STEP 2. Prepare wget CMD files for parallel downloading
+# Create CMD file
+CreateWgetCMDFiles <- function() {
   
   articlesLinks <- readLines(file.path(tempDataFolder, "articles.urls"))
   dir.create(warcFolder, showWarnings = FALSE)
@@ -94,11 +94,13 @@ GetWgetCMDFiles <- function() {
     dir.create(subFolderPath)
 
     # write articles.urls for each 10K folders that contains 10K articles urls
-    writeLines(articlesLinks[firstFileInGroup:lastFileInGroup], file.path(subFolderPath, "articles.urls"))
+    writeLines(articlesLinks[firstFileInGroup:lastFileInGroup], 
+               file.path(subFolderPath, "articles.urls"))
     
     # add command line in CMD file as:
     # START wget --warc-file=warc\000001-010000 -i 000001-010000\list.urls -P 000001-010000
-    cmdCode <-paste0("START ..\\wget --warc-file=warc\\", subFolderName," -i ", subFolderName, "\\", "articles.urls -P ", subFolderName)
+    cmdCode <-paste0("START ..\\wget --warc-file=warc\\", subFolderName," -i ", 
+                     subFolderName, "\\", "articles.urls -P ", subFolderName)
     cmdCodeAll <- c(cmdCodeAll, cmdCode)
   }
   
@@ -109,27 +111,24 @@ GetWgetCMDFiles <- function() {
   
 }
 
-# Create folders and cmd files
-Step2 <- function () {
-  GetWgetFiles()
+## STEP 3. Parse downloaded articles
+# Create CMD file for parallel articles parsing 
+CreateCMDForParsing <- function() {
+  # get list of folders that contain downloaded articles
+  folders <- list.files(downloadedArticlesFolder, full.names = FALSE, 
+                        recursive = FALSE, pattern = "-")
+  
+  # create CMD contains commands to run parse.R script with specified folder number
+  nn <- 1:length(folders)
+  cmdCodeAll <- paste0("start C:/R/R-3.4.0/bin/Rscript.exe ", 
+                       file.path(getwd(), "C:/Users/ildar/lenta/parse.R "), nn)
+  
+  cmdFile <- file.path(downloadedArticlesFolder, "parsing.cmd")
+  writeLines(cmdCodeAll, cmdFile)
+  print(paste0("Run ", cmdFile, " to start parsing."))
+  
 }
 
-## STEP 3 CODE
-# Validation of downloaded files
-ValidateDownloadedFiles <- function() {
-  files <- list.files(file.path(getwd(), "data"), full.names = TRUE, recursive = TRUE, pattern = "index")
-  downloadedLonls <- c()
-  for (i in 1:length(files)) {
-    currentFile <- files[i]
-    pg <- read_html(currentFile, encoding = "UTF-8")
-    fileLink <- html_nodes(pg, xpath=".//link[@rel='canonical']") %>% html_attr("href")   
-    downloadedLonls <- c(downloadedLonls, fileLink)  
-    saveRDS(downloadedLonls, file = "data/tempDownloadedList.rds")
-  }
-}
-
-## STEP 4 CODE
-# Validation of downloaded files
 ReadFile <- function(filename) {
   
   pg <- read_html(filename, encoding = "UTF-8")
@@ -281,15 +280,6 @@ ReadFilesInFolder <- function(folderNumber) {
   }
   df <- bind_rows(dfList)
   write.csv(df, file.path(dataFolder, paste0("dfs/", folderName, ".csv")), fileEncoding = "UTF-8")
-}
-
-CreateCMDForParsing <- function() {
-  dataFolder <- file.path(getwd(), "data")
-  folders <- list.files(dataFolder, full.names = FALSE, recursive = FALSE, pattern = "-")
-  nn <- 1:length(folders)
-  cmdFile <- paste0("start C:/R/R-3.4.0/bin/Rscript.exe C:/Users/ildar/lenta/parse.R ",nn)
-  writeLines(cmdFile, "parsing.cmd")
-
 }
 
 UnionData <- function() {
