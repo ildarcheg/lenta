@@ -46,24 +46,22 @@ SetNAIfZeroLength <- function(param) {
 # dowload list of pages with archived articles
 GetNewsListForPeriod <- function() {
   
+  # prepare vector of links of archive pages in https://lenta.ru//yyyy/mm/dd/ format
   dayArray <- seq(as.Date(articlesStartDate), as.Date(articlesEndDate), 
                   by="days")
-  linksList <- paste0(baseURL, "/", year(dayArray), 
+  archivePagesLinks <- paste0(baseURL, "/", year(dayArray), 
                       "/", formatC(month(dayArray), width = 2, format = "d", flag = "0"), 
                       "/", formatC(day(dayArray), width = 2, format = "d", flag = "0"), 
                       "/")
-  newsList <- c()
-  print(length(linksList))
-  for (i in 1:length(linksList)) {
-    print(linksList[i])
-    print(i)
-    pg <- read_html(linksList[i], encoding = "UTF-8")
+  articlesLinks <- c()
+  for (i in 1:length(archivePagesLinks)) {
+    pg <- read_html(archivePagesLinks[i], encoding = "UTF-8")
     total <- html_nodes(pg, xpath=".//section[@class='b-longgrid-column']//div[@class='titles']//a") %>% html_attr("href")   
-    newsList <- c(newsList, total)
-    saveRDS(newsList, file.path(tempDataFolder, "tempNewsList.rds"))
+    articlesLinks <- c(articlesLinks, total)
+    saveRDS(articlesLinks, file.path(tempDataFolder, "tempArticlesLinks.rds"))
   }
-  newsList <- paste0(baseURL, newsList)
-  write.csv(newsList, file.path(tempDataFolder, "articlesLinks.csv"))
+  articlesLinks <- paste0(baseURL, articlesLinks)
+  write.csv(articlesLinks, file.path(tempDataFolder, "articlesLinks.csv"))
 }
 
 ## STEP 2 CODE
