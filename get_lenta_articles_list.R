@@ -24,6 +24,9 @@ parsedArticlesFolder <- file.path(getwd(), "parsed_articles")
 dfsFolder <- file.path(dataFolder, "dfs")
 commandsFolder <- file.path(dataFolder, "commands")
 
+articlesStartDate <- as.Date("2010-01-01")
+articlesEndDate <- as.Date("2017-06-30")
+
 # Creare required folders if not exist 
 dir.create(tempDataFolder, showWarnings = FALSE)
 dir.create(downloadedArticlesFolder, showWarnings = FALSE)
@@ -39,32 +42,28 @@ SetNAIfZeroLength <- function(param) {
   return(param)
 }
 
-## STEP 1 CODE
-# donloading list of pages with archived articles
-GetNewsListForPeriod <- function(startDate, endDate) {
-  dayArray <- seq(as.Date(startDate), as.Date(endDate), by="days")
-  archiveLinkList <- paste0(baseURL, "/", year(dayArray), "/", 
-                            formatC(month(dayArray), width = 2, format = "d", 
-                                    flag = "0"), "/", formatC(day(dayArray), 
-                                                              width = 2, format = "d", flag = "0"), "/")
+## STEP 1
+# dowload list of pages with archived articles
+GetNewsListForPeriod <- function() {
+  
+  dayArray <- seq(as.Date(articlesStartDate), as.Date(articlesEndDate), 
+                  by="days")
+  linksList <- paste0(baseURL, "/", year(dayArray), 
+                      "/", formatC(month(dayArray), width = 2, format = "d", flag = "0"), 
+                      "/", formatC(day(dayArray), width = 2, format = "d", flag = "0"), 
+                      "/")
   newsList <- c()
-  for (i in 1:length(archiveLinkList)) {
-    print(archiveLinkList[i])
+  print(length(linksList))
+  for (i in 1:length(linksList)) {
+    print(linksList[i])
     print(i)
-    pg <- read_html(archiveLinkList[i], encoding = "UTF-8")
+    pg <- read_html(linksList[i], encoding = "UTF-8")
     total <- html_nodes(pg, xpath=".//section[@class='b-longgrid-column']//div[@class='titles']//a") %>% html_attr("href")   
     newsList <- c(newsList, total)
-    
     saveRDS(newsList, file = "data/tempNewsList.rds")
   }
-  return(newsList)
-}
-
-# getting links to all articles for 2010-2017
-Step1 <- function() {
-  newsList <- GetNewsListForPeriod(as.Date("2010-01-01"), as.Date("2017-06-30"))
-  newsLinkList <- paste0(baseURL, newsList)
-  saveRDS(newsLinkList, file = "data/tempNewsLinkList.rds") 
+  newsList <- paste0(baseURL, newsList)
+  write.csv(newsList, file.path(tempDataFolder, "tempNewsLinkList.rds"))
 }
 
 ## STEP 2 CODE
