@@ -121,7 +121,7 @@ CreateCMDForParsing <- function() {
   # create CMD contains commands to run parse.R script with specified folder number
   nn <- 1:length(folders)
   cmdCodeAll <- paste0("start C:/R/R-3.4.0/bin/Rscript.exe ", 
-                       file.path(getwd(), "C:/Users/ildar/lenta/parse.R "), nn)
+                       file.path(getwd(), "parse.R "), nn)
   
   cmdFile <- file.path(downloadedArticlesFolder, "parsing.cmd")
   writeLines(cmdCodeAll, cmdFile)
