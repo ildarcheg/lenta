@@ -4,5 +4,7 @@ data/
 wget.exe
 .Rhistory
 .DS_Store
-data_ old
 mystem.exe
+temp_data/
+downloaded_articles/
+parsed_articles/
