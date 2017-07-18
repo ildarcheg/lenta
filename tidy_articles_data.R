@@ -16,9 +16,11 @@ if (Sys.info()['sysname'] == "Windows") {
 setwd(workingDirectory)
 
 # Set common variables
-baseURL <- "https://lenta.ru"
 parsedArticlesFolder <- file.path(getwd(), "parsed_articles")
+tidiedArticlesFolder <- file.path(getwd(), "tidied_articles")
 
+# Creare required folders if not exist 
+dir.create(tidiedArticlesFolder, showWarnings = FALSE)
 
 ## STEP 5. Clear and tidy data
 # 
@@ -128,11 +130,8 @@ TityData <- function() {
            authorLinks, additionalLinks, plaintextLinks, imageDescription, imageCreditsPerson,
            imageCreditsCompany, videoDescription, videoCredits)
   
-  # Function UpdateAdditionalLinks is used to process missed values in datetime column
-  # and fill them up with date and time retrived from string presentation 
-  # such as "13:47, 18 июля 2017" or from url such 
-  # as https://lenta.ru/news/2017/07/18/frg/. Hours and Minutes set randomly
-  # from 8 to 21 in last case  
+  # Function UpdateAdditionalLinks is used to process and clean additionalLinks 
+  # and plaintextLinks
   UpdateAdditionalLinks <- function(additionalLinks, url) {
     if (is.na(additionalLinks)) {
       return(NA)
@@ -146,7 +145,6 @@ TityData <- function() {
     additionalLinksSplitted <- additionalLinksSplitted[!grepl("lenta.", additionalLinksSplitted)]
     additionalLinksSplitted <- unlist(strsplit(additionalLinksSplitted, "/[^/]*$"))
     additionalLinksSplitted <- paste0("http://", additionalLinksSplitted)
-    additionalLinksSplitted <- additionalLinksSplitted[grepl("http:|https:", additionalLinksSplitted)]
     
     if (!length(additionalLinksSplitted) == 0) {
       URLSplitted <- c()
@@ -168,6 +166,8 @@ TityData <- function() {
     }
   }
   
+  # Function UpdateAdditionalLinksDomain is used to process additionalLinks 
+  # and plaintextLinks and retrive source domain name
   UpdateAdditionalLinksDomain <- function(additionalLinks, url) {
     if (is.na(additionalLinks)|(additionalLinks=="NA")) {
       return(NA)
@@ -190,6 +190,7 @@ TityData <- function() {
     }
   }
   
+  # Clean additionalLinks and plaintextLinks
   symbolsToRemove <- "href=|-–-|«|»|…|,|•|“|”|\n|\"|,|[|]|<a|<br" 
   symbolsHttp <- "http:\\\\\\\\|:http://|-http://|.http://"
   symbolsHttp2 <- "http://http://|https://https://"
@@ -205,10 +206,18 @@ TityData <- function() {
     mutate(additionalLinks = gsub(symbolsReplace, "e", additionalLinks)) %>%
     mutate(additionalLinks = gsub(symbolsHttp2, "http://", additionalLinks))
   
+  # Clean additionalLinks and plaintextLinks using UpdateAdditionalLinks 
+  # function. Links such as:
+  # "http://www.dw.com/ru/../B2 https://www.welt.de/politik/.../de/"
+  # should be represented as "dw.com welt.de"
   dtD <- dtD %>% 
     mutate(plaintextLinks = mapply(UpdateAdditionalLinks, plaintextLinks, url)) %>%
     mutate(additionalLinks = mapply(UpdateAdditionalLinks, additionalLinks, url))
   
+  # Retrive domain from external links using updateAdditionalLinksDomain 
+  # function. Links such as:
+  # "http://www.dw.com/ru/../B2 https://www.welt.de/politik/.../de/"
+  # should be represented as "dw.com welt.de"  
   numberOfLinks <- nrow(dtD)
   groupSize <- 10000
   groupsN <- seq(from = 1, to = numberOfLinks, by = groupSize)
@@ -223,6 +232,6 @@ TityData <- function() {
     print(unique(dtD$plaintextLinks[n1:n2]))    
   }
   
-  write.csv(dtD, file.path(dataFolder, "tidy_articles_data.csv"), fileEncoding = "UTF-8")
+  write.csv(dtD, file.path(tidiedArticlesFolder, "tidy_articles_data.csv"), fileEncoding = "UTF-8")
   
 }
