@@ -129,16 +129,29 @@ CreateCMDForParsing <- function() {
   
 }
 
+# Parse srecific file
 ReadFile <- function(filename) {
   
   pg <- read_html(filename, encoding = "UTF-8")
   
-  metaTitle <- html_nodes(pg, xpath=".//meta[@property='og:title']") %>% html_attr("content") %>% SetNAIfZeroLength() 
-  metaType <- html_nodes(pg, xpath=".//meta[@property='og:type']") %>% html_attr("content") %>% SetNAIfZeroLength()
-  metaDescription <- html_nodes(pg, xpath=".//meta[@property='og:description']") %>% html_attr("content") %>% SetNAIfZeroLength()
-  rubric <- html_nodes(pg, xpath=".//div[@class='b-subheader__title js-nav-opener']") %>% html_text() %>% SetNAIfZeroLength()
+  metaTitle <- html_nodes(pg, xpath=".//meta[@property='og:title']") %>%
+    html_attr("content") %>% 
+    SetNAIfZeroLength() 
+  metaType <- html_nodes(pg, xpath=".//meta[@property='og:type']") %>% 
+    html_attr("content") %>% 
+    SetNAIfZeroLength()
+  metaDescription <- html_nodes(pg, xpath=".//meta[@property='og:description']") %>% 
+    html_attr("content") %>% 
+    SetNAIfZeroLength()
+  rubric <- html_nodes(pg, xpath=".//div[@class='b-subheader__title js-nav-opener']") %>% 
+    html_text() %>% 
+    SetNAIfZeroLength()
   
-  scriptContent <- html_nodes(pg, xpath=".//script[contains(text(),'chapters: [')]") %>% html_text() %>% strsplit("\n") %>% unlist()
+  scriptContent <- html_nodes(pg, xpath=".//script[contains(text(),'chapters: [')]") %>% 
+    html_text() %>% 
+    strsplit("\n") %>% 
+    unlist()
+  
   if (is.null(scriptContent[1])) {
     chapters <- NA
   } else if (is.na(scriptContent[1])) {
@@ -146,49 +159,75 @@ ReadFile <- function(filename) {
   } else {
     chapters <- scriptContent[grep("chapters: ", scriptContent)] %>% unique()
   }
-   
-  #numberOfComments <- <span id="comments-count"> 358</span>
-  title <- html_nodes(pg, xpath=".//head/title") %>% html_text() %>% SetNAIfZeroLength()
   
-  #shareFB <- html_nodes(pg, xpath=".//div[@data-target='fb']") %>% html_text() %>% SetNAIfZeroLength()
-  #shareVK <- html_nodes(pg, xpath=".//div[@data-target='vk']") %>% html_text() %>% SetNAIfZeroLength()
-  #shareOK <- html_nodes(pg, xpath=".//div[@data-target='ok']") %>% html_text() %>% SetNAIfZeroLength()
-  #shareTW <- html_nodes(pg, xpath=".//div[@data-target='tw']") %>% html_text() %>% SetNAIfZeroLength()
-  #shareLJ <- html_nodes(pg, xpath=".//div[@data-target='LJ']") %>% html_text() %>% SetNAIfZeroLength()
+  title <- html_nodes(pg, xpath=".//head/title") %>% 
+    html_text() %>% 
+    SetNAIfZeroLength()
+  
+  #shareFB <- html_nodes(pg, xpath=".//div[@data-target='fb']")
+  #shareVK <- html_nodes(pg, xpath=".//div[@data-target='vk']")
+  #shareOK <- html_nodes(pg, xpath=".//div[@data-target='ok']")
+  #shareTW <- html_nodes(pg, xpath=".//div[@data-target='tw']")
+  #shareLJ <- html_nodes(pg, xpath=".//div[@data-target='LJ']")
 
   articleBodyNode <- html_nodes(pg, xpath=".//div[@itemprop='articleBody']")
   
-  plaintext <- html_nodes(articleBodyNode, xpath=".//p") %>% html_text() %>% paste0(collapse="") 
+  plaintext <- html_nodes(articleBodyNode, xpath=".//p") %>% 
+    html_text() %>% 
+    paste0(collapse="") 
   if (plaintext == "") {
     plaintext <- NA
   }
-  plaintextLinks <- html_nodes(articleBodyNode, xpath=".//a") %>% html_attr("href") %>% unique() %>% paste0(collapse=" ")
+  
+  plaintextLinks <- html_nodes(articleBodyNode, xpath=".//a") %>% 
+    html_attr("href") %>% 
+    unique() %>% 
+    paste0(collapse=" ")
   if (plaintextLinks == "") {
     plaintextLinks <- NA
   }
   
-  additionalLinks <- html_nodes(pg, xpath=".//section/div[@class='item']/div/..//a") %>% html_attr("href") %>% unique() %>% paste0(collapse=" ")
+  additionalLinks <- html_nodes(pg, xpath=".//section/div[@class='item']/div/..//a") %>% 
+    html_attr("href") %>% 
+    unique() %>% 
+    paste0(collapse=" ")
   if (additionalLinks == "") {
     additionalLinks <- NA
   }
   
   imageNodes <- html_nodes(pg, xpath=".//div[@class='b-topic__title-image']")
-  imageDescription <- html_nodes(imageNodes, xpath="div//div[@class='b-label__caption']") %>% html_text() %>% unique() %>% SetNAIfZeroLength()
-  imageCredits <- html_nodes(imageNodes, xpath="div//div[@class='b-label__credits']") %>% html_text() %>% unique() %>% SetNAIfZeroLength() 
+  imageDescription <- html_nodes(imageNodes, xpath="div//div[@class='b-label__caption']") %>% 
+    html_text() %>% 
+    unique() %>% 
+    SetNAIfZeroLength()
+  imageCredits <- html_nodes(imageNodes, xpath="div//div[@class='b-label__credits']") %>% 
+    html_text() %>% 
+    unique() %>% 
+    SetNAIfZeroLength() 
   
   if (is.na(imageDescription)&is.na(imageCredits)) {
     videoNodes <- html_nodes(pg, xpath=".//div[@class='b-video-box__info']")
-    videoDescription <- html_nodes(videoNodes, xpath="div[@class='b-video-box__caption']") %>% html_text() %>% unique() %>% SetNAIfZeroLength()
-    videoCredits <- html_nodes(videoNodes, xpath="div[@class='b-video-box__credits']") %>% html_text() %>% unique() %>% SetNAIfZeroLength() 
+    videoDescription <- html_nodes(videoNodes, xpath="div[@class='b-video-box__caption']") %>% 
+      html_text() %>% 
+      unique() %>% 
+      SetNAIfZeroLength()
+    videoCredits <- html_nodes(videoNodes, xpath="div[@class='b-video-box__credits']") %>% 
+      html_text() %>% 
+      unique() %>% 
+      SetNAIfZeroLength() 
   } else {
     videoDescription <- NA
     videoCredits <- NA
   }
   
-  url <- html_nodes(pg, xpath=".//head/link[@rel='canonical']") %>% html_attr("href") %>% SetNAIfZeroLength()
+  url <- html_nodes(pg, xpath=".//head/link[@rel='canonical']") %>% 
+    html_attr("href") %>% 
+    SetNAIfZeroLength()
   
   authorSection <- html_nodes(pg, xpath=".//p[@class='b-topic__content__author']")
-  authors <- html_nodes(authorSection, xpath="//span[@class='name']") %>% html_text() %>% SetNAIfZeroLength()
+  authors <- html_nodes(authorSection, xpath="//span[@class='name']") %>% 
+    html_text() %>% 
+    SetNAIfZeroLength()
   if (length(authors) > 1) {
     authors <- paste0(authors, collapse = "|")
   }
@@ -199,43 +238,18 @@ ReadFile <- function(filename) {
   
   #itemprop="datePublished"
   #.//time[@class='g-date']
-  datetimeString <- html_nodes(pg, xpath=".//div[@class='b-topic__info']/time[@class='g-date']") %>% html_text() %>% unique() %>% SetNAIfZeroLength()
-  datetime <- html_nodes(pg, xpath=".//div[@class='b-topic__info']/time[@class='g-date']") %>% html_attr("datetime") %>% unique() %>% SetNAIfZeroLength()
+  datetimeString <- html_nodes(pg, xpath=".//div[@class='b-topic__info']/time[@class='g-date']") %>% 
+    html_text() %>% 
+    unique() %>% 
+    SetNAIfZeroLength()
+  datetime <- html_nodes(pg, xpath=".//div[@class='b-topic__info']/time[@class='g-date']") %>% 
+    html_attr("datetime") %>% unique() %>% SetNAIfZeroLength()
   if (is.na(datetimeString)) {
-    datetimeString <- html_nodes(pg, xpath=".//div[@class='b-topic__date']") %>% html_text() %>% unique() %>% SetNAIfZeroLength()
+    datetimeString <- html_nodes(pg, xpath=".//div[@class='b-topic__date']") %>% 
+      html_text() %>% 
+      unique() %>% 
+      SetNAIfZeroLength()
   }
-   #print(paste("-----Part ", filename))
-   #print("-url")
-   #print(url)
-   #print("-metaTitle")
-   #print(metaTitle)
-   #print("-metaType")
-   #print(metaType)
-   #print("-metaDescription")
-   #print(metaDescription)
-   #print("-rubric")
-   #print(rubric)
-   #print("-datetime")
-   #print(datetime)
-   #print("-datetimeString")
-   #print(datetimeString)
-   #print("-title")
-   #print(title)
-   #print("-authors")
-   #print(authors)
-   #print("-authorLinks")
-   #print(authorLinks)
-   #print("-additionalLinks")
-   #print(additionalLinks)
-   #print("-imageDescription")
-   #print(imageDescription)
-   #print("-imageCredits")
-   #print(imageCredits)
-   #print("-videoDescription")
-   #print(videoDescription)
-   #print("-videoCredits")
-   #print(videoCredits)
-   #print("----")
 
   data.frame(url = url,
              filename = filename, 
@@ -260,12 +274,15 @@ ReadFile <- function(filename) {
   
 }
 
+# Read and parse files in folder with provided number
 ReadFilesInFolder <- function(folderNumber) {
-  dataFolder <- file.path(getwd(), "data")
-  folders <- list.files(dataFolder, full.names = FALSE, recursive = FALSE, pattern = "-")
+
+  folders <- list.files(downloadedArticlesFolder, full.names = FALSE, 
+                        recursive = FALSE, pattern = "-")
   folderName <- folders[folderNumber]
-  currentFolder <- file.path(dataFolder, folderName)
-  files <- list.files(currentFolder, full.names = TRUE, recursive = FALSE, pattern = "index")
+  currentFolder <- file.path(downloadedArticlesFolder, folderName)
+  files <- list.files(currentFolder, full.names = TRUE, 
+                      recursive = FALSE, pattern = "index")
   
   numberOfFiles <- length(files)
   print(numberOfFiles)
@@ -279,13 +296,14 @@ ReadFilesInFolder <- function(folderNumber) {
     dfList[[i]] <- map_df(files[firstFileInGroup:lastFileInGroup], ReadFile)
   }
   df <- bind_rows(dfList)
-  write.csv(df, file.path(dataFolder, paste0("dfs/", folderName, ".csv")), fileEncoding = "UTF-8")
+  write.csv(df, file.path(parsedArticlesFolder, paste0(folderName, ".csv")), 
+            fileEncoding = "UTF-8")
 }
 
+## STEP 4. Prepare combined articles data
+# Read all parsed csv and combine them in one
 UnionData <- function() {
-  dataFolder <- file.path(getwd(), "data")
-  dfsFolder <- file.path(getwd(), "data/dfs")
-  files <- list.files(dfsFolder, full.names = TRUE, recursive = FALSE)
+  files <- list.files(parsedArticlesFolder, full.names = TRUE, recursive = FALSE)
   dfList <- c()
   for (i in 1:length(files)) {
     file <- files[i]
@@ -293,67 +311,6 @@ UnionData <- function() {
     dfList[[i]] <- read.csv(file, stringsAsFactors = FALSE, encoding = "UTF-8")
   }
   df <- bind_rows(dfList)
-  write.csv(df, file.path(dataFolder, "untidy_articles_data.csv"), fileEncoding = "UTF-8")
+  write.csv(df, file.path(parsedArticlesFolder, "untidy_articles_data.csv"), 
+            fileEncoding = "UTF-8")
 }
-
-test <- function(k) {
-print(k)
-}
-
-
-## STEP 4 CODE
-# Validation of downloaded files
-ReadDataFromCSV <- function() {
-  dataFolder <- file.path(getwd(), "data")
-  dfsFolder <- file.path(dataFolder, "dfs")
-  files <- list.files(dfsFolder, full.names = TRUE, recursive = FALSE)
-  filesN <- list.files(dfsFolder, full.names = FALSE, recursive = FALSE)
-  dfList <- list()
-  for (i in 1:length(files)) {
-    file <- files[i]
-    print(file)
-    df <- read.csv(file, encoding = "UTF-8", stringsAsFactors = FALSE)
-    df$folderName <- filesN[i]
-    dfList[[i]] <- df
-  }
-  df <- bind_rows(dfList)
-  write.csv(df, file.path(dataFolder, paste0("mainData.csv")), fileEncoding = "UTF-8")
-}
-
-Validation <- function() {
-  dataFolder <- file.path(getwd(), "data")
-  folders <- list.files(dataFolder, full.names = FALSE, recursive = FALSE, pattern = "-")
-  listURL <- c()
-  for (i in 1:length(folders)) {
-    folderName <- folders[i] 
-    fileListName <- file.path(dataFolder, paste0(folderName,"/list.urls"))
-    x <- readLines(fileListName)
-    listURL <- c(listURL, x)
-  }
-  
-  listURL2 <- listURL[!listURL %in% df$url]
-  
-}
-
-## STEP 5 CODE
-# Combine downloaded files
-GetCMDFilesToCombine <- function() {
-  
-  dataFolder <- file.path(getwd(), "data")
-  folders <- list.files(dataFolder, full.names = FALSE, recursive = FALSE, pattern = "-")
-  cmdFile <- c()
-  for (i in 1:length(folders)) {
-    folderName <- folders[i]
-    currentFolder <- file.path(dataFolder, folderName) 
-    files <- list.files(currentFolder, full.names = TRUE, recursive = FALSE, pattern = "index")
-    fileName <- file.path(dataFolder, paste0("combine/filesInFolder", folderName, ".list"))
-    writeLines(files, fileName)
-    #cat filesInFolder240001-260000.list | xargs -n 32 -P 8 cat >> /Users/ildar/lenta/data/000000.ht
-    fileNameCombine <- file.path(dataFolder, paste0("combine/", folderName, ".combine"))
-    cmdFile <- c(cmdFile, paste0("cat ",fileName, " | xargs -n 32 -P 8 cat >> ", fileNameCombine))
-  }
-  writeLines(cmdFile, file.path(dataFolder, "cmd.run"))
-}
-#Step1()
-#Step2()
-#Step3()
