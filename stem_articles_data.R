@@ -43,6 +43,7 @@ CreateCommandFileForStemData <- function() {
            stemMetaDescription = str_trim(stemMetaDescription, side = "both"), 
            stemPlaintext = str_trim(stemPlaintext, side = "both")))
   
+  write.csv(dt, file.path(dataFolder, "tidy_articles_data_ready_for_stem.csv"), fileEncoding = "UTF-8")
   
   write.csv(dt[1:10, ], file.path(dataFolder, "sample_articles_data.csv"), fileEncoding = "UTF-8")
 }
