@@ -20,8 +20,8 @@ setwd(workingDirectory)
 baseURL <- "https://lenta.ru"
 tempDataFolder <- file.path(getwd(), "temp_data")
 downloadedArticlesFolder <- file.path(getwd(), "downloaded_articles")
+warcFolder <- file.path(downloadedArticlesFolder, "warc")
 parsedArticlesFolder <- file.path(getwd(), "parsed_articles")
-dfsFolder <- file.path(tempDataFolder, "dfs")
 commandsFolder <- file.path(tempDataFolder, "commands")
 
 articlesStartDate <- as.Date("2010-01-01")
@@ -31,8 +31,8 @@ articlesEndDate <- as.Date("2017-06-30")
 dir.create(tempDataFolder, showWarnings = FALSE)
 dir.create(downloadedArticlesFolder, showWarnings = FALSE)
 dir.create(parsedArticlesFolder, showWarnings = FALSE)
-dir.create(dfsFolder, showWarnings = FALSE)
 dir.create(commandsFolder, showWarnings = FALSE)
+dir.create(warcFolder, showWarnings = FALSE)
 
 ## SERVICE FUNCTION
 SetNAIfZeroLength <- function(param) {
@@ -56,44 +56,50 @@ GetNewsListForPeriod <- function() {
   articlesLinks <- c()
   for (i in 1:length(archivePagesLinks)) {
     pg <- read_html(archivePagesLinks[i], encoding = "UTF-8")
-    total <- html_nodes(pg, xpath=".//section[@class='b-longgrid-column']//div[@class='titles']//a") %>% html_attr("href")   
+    total <- html_nodes(pg, 
+              xpath=".//section[@class='b-longgrid-column']//div[@class='titles']//a") %>% 
+              html_attr("href")   
     articlesLinks <- c(articlesLinks, total)
     saveRDS(articlesLinks, file.path(tempDataFolder, "tempArticlesLinks.rds"))
   }
   articlesLinks <- paste0(baseURL, articlesLinks)
-  write.csv(articlesLinks, file.path(tempDataFolder, "articlesLinks.csv"))
+  writeLines(articlesLinks, file.path(tempDataFolder, "articles.urls"))
 }
 
 ## STEP 2 CODE
-# Prepare wget code for pages downloading
+# Prepare wget CMD files for parallel downloading
 GetWgetFiles <- function() {
   
-  dataFolder <- file.path(getwd(), "data")
-  warcFolder <- file.path(dataFolder, "warc")
-  dir.create(warcFolder)
+  articlesLinks <- readLines(file.path(tempDataFolder, "articles.urls"))
   
-  newsLinkList <- readRDS(file.path(dataFolder,"tempNewsLinkList.rds"))
-  
-  numberOfLinks <- length(newsLinkList)
+  # split up articles links array by 10K links 
+  numberOfLinks <- length(articlesLinks)
   digitNumber <- nchar(numberOfLinks)
   groupSize <- 10000
   filesGroup <- seq(from = 1, to = numberOfLinks, by = groupSize)
   cmdCodeAll <- c()
+  
   for (i in 1:length(filesGroup)) {
+    
+    # prepare folder name as 00001-10000, 10001-20000 etc
     firstFileInGroup <- filesGroup[i]
     lastFileInGroup <- min(firstFileInGroup + groupSize - 1, numberOfLinks)
-    leftPartFolderName <- formatC(firstFileInGroup, width = digitNumber, format = "d", flag = "0")
-    rigthPartFolderName <- formatC(lastFileInGroup, width = digitNumber, format = "d", flag = "0")
+    leftPartFolderName <- formatC(firstFileInGroup, width = digitNumber, 
+                                  format = "d", flag = "0")
+    rigthPartFolderName <- formatC(lastFileInGroup, width = digitNumber, 
+                                   format = "d", flag = "0")
     subFolderName <- paste0(leftPartFolderName, "-", rigthPartFolderName)
-    subFolderPath <- file.path(getwd(), paste0("data/",subFolderName))
+    subFolderPath <- file.path(downloadedArticlesFolder, subFolderName)
     dir.create(subFolderPath)
-    print(subFolderName)
-    writeLines(newsLinkList[firstFileInGroup:lastFileInGroup], file.path(subFolderPath, "list.urls"))
-    #START "" wget --warc-file=001\lenta -i 000\list.urls -P 001
-    cmdCode <-paste0("START wget --warc-file=warc\\", subFolderName," -i ", subFolderName, "\\", "list.urls -P ", subFolderName)
+
+    # write articles.urls for each 10K folders that contains 10K articles urls
+    writeLines(articlesLinks[firstFileInGroup:lastFileInGroup], file.path(subFolderPath, "articles.urls"))
+    # add command line in CMD file as:
+    # START wget --warc-file=warc\000001-010000 -i 000001-010000\list.urls -P 000001-010000
+    cmdCode <-paste0("START wget --warc-file=warc\\", subFolderName," -i ", subFolderName, "\\", "articles.urls -P ", subFolderName)
     cmdCodeAll <- c(cmdCodeAll, cmdCode)
   }
-  writeLines(cmdCodeAll, file.path(dataFolder, "start.cmd"))
+  writeLines(cmdCodeAll, file.path(downloadedArticlesFolder, "start.cmd"))
 }
 
 # Create folders and cmd files
