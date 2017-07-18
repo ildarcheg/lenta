@@ -68,7 +68,7 @@ GetNewsListForPeriod <- function() {
 
 ## STEP 2 CODE
 # Prepare wget CMD files for parallel downloading
-GetWgetFiles <- function() {
+GetWgetCMDFiles <- function() {
   
   articlesLinks <- readLines(file.path(tempDataFolder, "articles.urls"))
   
@@ -94,12 +94,16 @@ GetWgetFiles <- function() {
 
     # write articles.urls for each 10K folders that contains 10K articles urls
     writeLines(articlesLinks[firstFileInGroup:lastFileInGroup], file.path(subFolderPath, "articles.urls"))
+    
     # add command line in CMD file as:
     # START wget --warc-file=warc\000001-010000 -i 000001-010000\list.urls -P 000001-010000
     cmdCode <-paste0("START wget --warc-file=warc\\", subFolderName," -i ", subFolderName, "\\", "articles.urls -P ", subFolderName)
     cmdCodeAll <- c(cmdCodeAll, cmdCode)
   }
-  writeLines(cmdCodeAll, file.path(downloadedArticlesFolder, "start.cmd"))
+  
+  cmdFile <- file.path(downloadedArticlesFolder, "start.cmd")
+  writeLines(cmdCodeAll, cmdFile)
+  print(paste0("Run ", cmdFile, " to start downloading."))
 }
 
 # Create folders and cmd files
