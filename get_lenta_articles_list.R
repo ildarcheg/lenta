@@ -1,3 +1,4 @@
+# Load required packages
 require(lubridate)
 require(rvest)
 require(dplyr)
@@ -5,17 +6,30 @@ require(purrr)
 require(XML)
 require(data.table)
 
-baseURL <- "https://lenta.ru"
-
-# Sys.setlocale("LC_ALL", "ru_RU.UTF-8")
-
-# setting working directory for mac and win
-if (Sys.getenv("HOMEPATH") == "") {
-  workingDirectory <- ("~/lenta")
+# Set workling directory and locale for macOS and Windows
+if (Sys.info()['sysname'] == "Windows") {
+  workingDirectory <- paste0(Sys.getenv("HOMEPATH"), "\\lenta") 
+  Sys.setlocale("LC_ALL", "Russian")
 } else {
-  workingDirectory <- paste0(Sys.getenv("HOMEPATH"), "\\lenta")  
+  workingDirectory <- ("~/lenta")
+  Sys.setlocale("LC_ALL", "ru_RU.UTF-8")
 }
 setwd(workingDirectory)
+
+# Set common variables
+baseURL <- "https://lenta.ru"
+tempDataFolder <- file.path(getwd(), "temp_data")
+downloadedArticlesFolder <- file.path(getwd(), "downloaded_articles")
+parsedArticlesFolder <- file.path(getwd(), "parsed_articles")
+dfsFolder <- file.path(dataFolder, "dfs")
+commandsFolder <- file.path(dataFolder, "commands")
+
+# Creare required folders if not exist 
+dir.create(tempDataFolder, showWarnings = FALSE)
+dir.create(downloadedArticlesFolder, showWarnings = FALSE)
+dir.create(parsedArticlesFolder, showWarnings = FALSE)
+dir.create(dfsFolder, showWarnings = FALSE)
+dir.create(commandsFolder, showWarnings = FALSE)
 
 ## SERVICE FUNCTION
 SetNAIfZeroLength <- function(param) {
