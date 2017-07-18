@@ -71,6 +71,7 @@ GetNewsListForPeriod <- function() {
 GetWgetCMDFiles <- function() {
   
   articlesLinks <- readLines(file.path(tempDataFolder, "articles.urls"))
+  dir.create(warcFolder, showWarnings = FALSE)
   
   # split up articles links array by 10K links 
   numberOfLinks <- length(articlesLinks)
