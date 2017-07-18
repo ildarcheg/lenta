@@ -5,27 +5,38 @@ require(data.table)
 require(tldextract)
 require(XML)
 
-Sys.setlocale("LC_ALL", "ru_RU.UTF-8")
-
-# setting working directory for mac and win
-if (Sys.getenv("HOMEPATH") == "") {
-  workingDirectory <- ("~/lenta")
+# Set workling directory and locale for macOS and Windows
+if (Sys.info()['sysname'] == "Windows") {
+  workingDirectory <- paste0(Sys.getenv("HOMEPATH"), "\\lenta") 
+  Sys.setlocale("LC_ALL", "Russian")
 } else {
-  workingDirectory <- paste0(Sys.getenv("HOMEPATH"), "\\lenta")  
+  workingDirectory <- ("~/lenta")
+  Sys.setlocale("LC_ALL", "ru_RU.UTF-8")
 }
 setwd(workingDirectory)
 
+# Set common variables
+baseURL <- "https://lenta.ru"
+parsedArticlesFolder <- file.path(getwd(), "parsed_articles")
+
+
+## STEP 5. Clear and tidy data
+# 
 TityData <- function() {
-  dataFolder <- file.path(getwd(), "data")
-  dfM <- fread(file.path(dataFolder, "untidy_articles_data.csv"), stringsAsFactors = FALSE, encoding = "UTF-8")
   
+  dfM <- fread(file.path(parsedArticlesFolder, "untidy_articles_data.csv"), 
+               stringsAsFactors = FALSE, encoding = "UTF-8")
+  
+  # Remove duplicate rows, remove rows with url = NA, create urlKey column as a key
   dtD <- dfM %>% 
     select(-V1,-X)  %>% 
     distinct(url, .keep_all=TRUE) %>% 
     na.omit(cols="url") %>%
     mutate(urlKey = gsub(":|\\.|/", "", url))
   
-  splitChapters <- function(x) {
+  # Function SplitChapters is used to process formatted chapter column and retrive rubric 
+  # and subrubric  
+  SplitChapters <- function(x) {
     splitOne <- strsplit(x, "lenta.ru:_")[[1]]
     splitLeft <- strsplit(splitOne[1], ",")[[1]]
     splitLeft <- unlist(strsplit(splitLeft, ":_"))
@@ -35,15 +46,25 @@ TityData <- function() {
     paste0(splitRight, collapse = "|")
   }
   
+  # Process chapter column to retrive rubric and subrubric
+  # Column value such as:
+  # chapters: ["Бывший_СССР","Украина","lenta.ru:_Бывший_СССР:_Украина:_Правительство_ФРГ_сочло_неприемлемым_создание_Малороссии"], // Chapters страницы
+  # should be represented as rubric value "Бывший СССР" 
+  # and subrubric value "Украина"
   dtD <- dtD %>% 
     mutate(chapters = gsub('\"|\\[|\\]| |chapters:', "", chapters)) %>%
     select(-rubric) %>%
-    mutate(chaptersFormatted = as.character(sapply(chapters, splitChapters))) %>%
+    mutate(chaptersFormatted = as.character(sapply(chapters, SplitChapters))) %>%
     separate(col = "chaptersFormatted", into = c("rubric", "subrubric")
              , sep = "\\|", extra = "drop", fill = "right", remove = FALSE) %>%
     filter(!rubric == "NA") %>%
     select(-chapters, -chaptersFormatted) 
   
+  # Process imageCredits column and split into imageCreditsPerson 
+  # and imageCreditsCompany
+  # Column value such as: "Фото: Игорь Маслов / РИА Новости" should be represented
+  # as imageCreditsPerson value "Игорь Маслов" and 
+  # imageCreditsCompany value "РИА Новости"
   pattern <- 'Фото: |Фото |Кадр: |Изображение: |, архив|(архив)|©|«|»|\\(|)|\"'
   dtD <- dtD %>% 
     mutate(imageCredits = gsub(pattern, "", imageCredits)) %>%
@@ -53,9 +74,14 @@ TityData <- function() {
     mutate(imageCreditsCompany = as.character(sapply(imageCreditsCompany, trimws))) %>%
     select(-imageCredits)
   
-  months <- c("января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря")
-  updateDatetime <- function (datetime, datetimeString, url) {
-    #print(datetimeString)
+  # Function UpdateDatetime is used to process missed values in datetime column
+  # and fill them up with date and time retrived from string presentation 
+  # such as "13:47, 18 июля 2017" or from url such 
+  # as https://lenta.ru/news/2017/07/18/frg/. Hours and Minutes set randomly
+  # from 8 to 21 in last case
+  months <- c("января", "февраля", "марта", "апреля", "мая", "июня", "июля", 
+              "августа", "сентября", "октября", "ноября", "декабря")
+  UpdateDatetime <- function (datetime, datetimeString, url) {
     datetimeNew <- datetime
     if (is.na(datetime)) { 
       if (is.na(datetimeString)) {
@@ -67,24 +93,32 @@ TityData <- function() {
         H <- round(runif(1, 8, 21))
         M <- round(runif(1, 1, 59))
         S <- 0
-        datetimeString <- paste0(paste0(c(y, m, d), collapse = "-"), " ", paste0(c(H, M, S), collapse = ":"))
+        datetimeString <- paste0(paste0(c(y, m, d), collapse = "-"), " ", 
+                                 paste0(c(H, M, S), collapse = ":"))
         datetimeNew <- ymd_hms(datetimeString, tz = "Europe/Moscow", quiet = TRUE)
       } else {
-        parsedDatetimeString <- unlist(strsplit(datetimeString, ",")) %>% trimws %>% strsplit(" ") %>% unlist()
+        parsedDatetimeString <- unlist(strsplit(datetimeString, ",")) %>% 
+          trimws %>% 
+          strsplit(" ") %>% 
+          unlist()
         monthNumber <- which(grepl(parsedDatetimeString[3], months))
-        datetimeString <- paste0(paste0(c(parsedDatetimeString[4], monthNumber, parsedDatetimeString[2]), collapse = "-"), " ", parsedDatetimeString[1], ":00")
+        dateString <- paste0(c(parsedDatetimeString[4], monthNumber, 
+                               parsedDatetimeString[2]), collapse = "-")
+        datetimeString <- paste0(dateString, " ", parsedDatetimeString[1], ":00")
         datetimeNew <- ymd_hms(datetimeString, tz = "Europe/Moscow", quiet = TRUE)
       }
     }  
-    #print(datetimeNew)
     datetimeNew
   }
   
+  # Process datetime and fill up missed values
   dtD <- dtD %>% 
     mutate(datetime = ymd_hms(datetime, tz = "Europe/Moscow", quiet = TRUE)) %>% 
-    mutate(datetimeNew = mapply(updateDatetime, datetime, datetimeString, url)) %>%
+    mutate(datetimeNew = mapply(UpdateDatetime, datetime, datetimeString, url)) %>%
     mutate(datetime = as.POSIXct(datetimeNew, tz = "Europe/Moscow",origin = "1970-01-01"))
   
+  # Remove rows with missed datetime values, replace title with metaTitle,
+  # remove columns that we do not need anymore  
   dtD <- dtD %>%
     as.data.table() %>%
     na.omit(cols="datetime") %>%
@@ -94,8 +128,12 @@ TityData <- function() {
            authorLinks, additionalLinks, plaintextLinks, imageDescription, imageCreditsPerson,
            imageCreditsCompany, videoDescription, videoCredits)
   
-  
-  updateAdditionalLinks <- function(additionalLinks, url) {
+  # Function UpdateAdditionalLinks is used to process missed values in datetime column
+  # and fill them up with date and time retrived from string presentation 
+  # such as "13:47, 18 июля 2017" or from url such 
+  # as https://lenta.ru/news/2017/07/18/frg/. Hours and Minutes set randomly
+  # from 8 to 21 in last case  
+  UpdateAdditionalLinks <- function(additionalLinks, url) {
     if (is.na(additionalLinks)) {
       return(NA)
     }
@@ -125,16 +163,12 @@ TityData <- function() {
         URLSplitted <- URLSplitted[!is.na(URLSplitted)]
         paste0(URLSplitted, collapse = " ")
       }
-      #domain <- paste0(tldextract(URLSplitted)$domain, ".", 
-      #                 tldextract(URLSplitted)$tld)
-      #return(NA)
-      #paste0(domain, collapse = " ")
     } else {
       NA
     }
   }
   
-  updateAdditionalLinksDomain <- function(additionalLinks, url) {
+  UpdateAdditionalLinksDomain <- function(additionalLinks, url) {
     if (is.na(additionalLinks)|(additionalLinks=="NA")) {
       return(NA)
     }
@@ -169,9 +203,11 @@ TityData <- function() {
     mutate(additionalLinks = gsub(symbolsToRemove,"", additionalLinks)) %>%
     mutate(additionalLinks = gsub(symbolsHttp, "http://", additionalLinks)) %>%
     mutate(additionalLinks = gsub(symbolsReplace, "e", additionalLinks)) %>%
-    mutate(additionalLinks = gsub(symbolsHttp2, "http://", additionalLinks)) %>%
-    mutate(plaintextLinks = mapply(updateAdditionalLinks, plaintextLinks, url)) %>%
-    mutate(additionalLinks = mapply(updateAdditionalLinks, additionalLinks, url))
+    mutate(additionalLinks = gsub(symbolsHttp2, "http://", additionalLinks))
+  
+  dtD <- dtD %>% 
+    mutate(plaintextLinks = mapply(UpdateAdditionalLinks, plaintextLinks, url)) %>%
+    mutate(additionalLinks = mapply(UpdateAdditionalLinks, additionalLinks, url))
   
   numberOfLinks <- nrow(dtD)
   groupSize <- 10000
