@@ -43,7 +43,7 @@ SetNAIfZeroLength <- function(param) {
 }
 
 ## STEP 1
-# dowload list of pages with archived articles
+# dowload list of pages with archived articles. Takes about 40 minutes.
 GetNewsListForPeriod <- function() {
   
   # prepare vector of links of archive pages in https://lenta.ru//yyyy/mm/dd/ format
