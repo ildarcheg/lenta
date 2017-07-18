@@ -22,7 +22,8 @@ TityData <- function() {
   dtD <- dfM %>% 
     select(-V1,-X)  %>% 
     distinct(url, .keep_all=TRUE) %>% 
-    na.omit(cols="url")
+    na.omit(cols="url") %>%
+    mutate(urlKey = gsub(":|\\.|/", "", url))
   
   splitChapters <- function(x) {
     splitOne <- strsplit(x, "lenta.ru:_")[[1]]
@@ -89,7 +90,7 @@ TityData <- function() {
     na.omit(cols="datetime") %>%
     select(-filename, -title, -metaType, -datetimeString, -datetimeNew) %>%
     rename(title = metaTitle) %>%
-    select(url, datetime, rubric, subrubric, title, metaDescription, plaintext, 
+    select(url, urlKey, datetime, rubric, subrubric, title, metaDescription, plaintext, 
            authorLinks, additionalLinks, plaintextLinks, imageDescription, imageCreditsPerson,
            imageCreditsCompany, videoDescription, videoCredits)
   
