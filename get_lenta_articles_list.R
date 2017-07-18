@@ -63,7 +63,7 @@ GetNewsListForPeriod <- function() {
     saveRDS(newsList, file.path(tempDataFolder, "tempNewsList.rds"))
   }
   newsList <- paste0(baseURL, newsList)
-  write.csv(newsList, file.path(tempDataFolder, "tempNewsLinkList.rds"))
+  write.csv(newsList, file.path(tempDataFolder, "articlesLinks.csv"))
 }
 
 ## STEP 2 CODE
