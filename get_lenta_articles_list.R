@@ -43,7 +43,8 @@ SetNAIfZeroLength <- function(param) {
 }
 
 ## STEP 1. Prepare articles links list
-# Dowload list of pages with archived articles. Takes about 40 minutes
+# Dowload list of pages with archived articles. 
+# Takes about 40 minutes
 GetNewsListForPeriod <- function() {
   
   # prepare vector of links of archive pages in https://lenta.ru//yyyy/mm/dd/ format
@@ -68,6 +69,7 @@ GetNewsListForPeriod <- function() {
 
 ## STEP 2. Prepare wget CMD files for parallel downloading
 # Create CMD file
+# Downloading process takes about 3 hours
 CreateWgetCMDFiles <- function() {
   
   articlesLinks <- readLines(file.path(tempDataFolder, "articles.urls"))
@@ -112,7 +114,8 @@ CreateWgetCMDFiles <- function() {
 }
 
 ## STEP 3. Parse downloaded articles
-# Create CMD file for parallel articles parsing 
+# Create CMD file for parallel articles parsing.
+# Parsing process takes about 1 hour
 CreateCMDForParsing <- function() {
   # get list of folders that contain downloaded articles
   folders <- list.files(downloadedArticlesFolder, full.names = FALSE, 
