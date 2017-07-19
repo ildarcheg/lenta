@@ -4,6 +4,8 @@ require(tidyr)
 require(data.table)
 require(tldextract)
 require(XML)
+require(stringr)
+require(tm)
 
 # Set workling directory and locale for macOS and Windows
 if (Sys.info()['sysname'] == "Windows") {
@@ -225,12 +227,31 @@ TityData <- function() {
   for (i in 1:length(groupsN)) {
     n1 <- groupsN[i]
     n2 <- min(n1 + groupSize - 1, numberOfLinks) 
-    print(paste0(n1, "-", n2))
     dtD$additionalLinks[n1:n2] <- mapply(updateAdditionalLinksDomain, dtD$additionalLinks[n1:n2], dtD$url[n1:n2])
-    print(unique(dtD$additionalLinks[n1:n2]))
     dtD$plaintextLinks[n1:n2] <- mapply(updateAdditionalLinksDomain, dtD$plaintextLinks[n1:n2], dtD$url[n1:n2])
-    print(unique(dtD$plaintextLinks[n1:n2]))    
   }
+  
+  # Clean title, descriprion and plain text. Remove puntuation and stop words
+  stopWords <- readLines("stop_words.csv", warn = FALSE, encoding = "UTF-8")
+  
+  dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = tolower(title), 
+                                   stemMetaDescription = tolower(metaDescription), 
+                                   stemPlaintext = tolower(plaintext))  %>%
+                mutate(stemTitle = enc2utf8(stemTitle), 
+                       stemMetaDescription = enc2utf8(stemMetaDescription), 
+                       stemPlaintext = enc2utf8(stemPlaintext))  %>% 
+                mutate(stemTitle = removeWords(stemTitle, stopWords), 
+                       stemMetaDescription = removeWords(stemMetaDescription, stopWords), 
+                       stemPlaintext = removeWords(stemPlaintext, stopWords))  %>% 
+                mutate(stemTitle = removePunctuation(stemTitle), 
+                       stemMetaDescription = removePunctuation(stemMetaDescription), 
+                       stemPlaintext = removePunctuation(stemPlaintext))  %>%    
+                mutate(stemTitle = str_replace_all(stemTitle, "\\s+", " "), 
+                       stemMetaDescription = str_replace_all(stemMetaDescription, "\\s+", " "), 
+                       stemPlaintext = str_replace_all(stemPlaintext, "\\s+", " "))  %>%     
+                mutate(stemTitle = str_trim(stemTitle, side = "both"), 
+                       stemMetaDescription = str_trim(stemMetaDescription, side = "both"), 
+                       stemPlaintext = str_trim(stemPlaintext, side = "both"))
   
   write.csv(dtD, file.path(tidyArticlesFolder, "tidy_articles_data.csv"), fileEncoding = "UTF-8")
   
