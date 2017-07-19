@@ -21,22 +21,30 @@ dir.create(stemedArticlesFolder, showWarnings = FALSE)
 
 ## STEP 6. Stem title, description and plain text
 # Write columns on disk, run mystem, read stemed data and add to data.table
-CreateCommandFileForStemData <- function() {
+StemArticlesData <- function() {
 
   dfM <- fread(file.path(tidyArticlesFolder, "tidy_articles_data.csv"), stringsAsFactors = FALSE, encoding = "UTF-8")
   dfM <- dfM[, -c("V1")]
   dt <- dfM %>% as.tbl() %>% select(urlKey, stemTitle, stemMetaDescription, stemPlaintext)  
 
   dt <- dt[, ]
-  write.csv(dt[, c("urlKey", "stemTitle")], 
-    file.path(dataFolder, "stem_titles.csv"), fileEncoding = "UTF-8")
-  system("mystem -nlc data/stem_titles.csv data/stemed_titles.csv", intern = FALSE)
-  write.csv(dt[ , c("urlKey", "stemMetaDescription")], 
-    file.path(dataFolder, "stem_metadescriptions.csv"), fileEncoding = "UTF-8")
-  system("mystem -nlc data/stem_metadescriptions.csv data/stemed_metadescriptions.csv", intern = FALSE)
-  write.csv(dt[ , c("urlKey", "stemPlaintext")], 
-    file.path(dataFolder, "stem_plaintext.csv"), fileEncoding = "UTF-8")
-  system("mystem -nlc data/stem_plaintext.csv data/stemed_plaintext.csv", intern = FALSE)
+  columnToStem <- "stemTitle"
+  sourceFile <- file.path(stemedArticlesFolder, "stem_titles.csv")
+  stemedFile <- file.path(stemedArticlesFolder, "stemed_titles.csv")
+  write.csv(dt[, c("urlKey", columnToStem)], sourceFile, fileEncoding = "UTF-8")
+  system(paste0("mystem -nlc ", sourceFile, " ", stemedFile), intern = FALSE)
+  
+  columnToStem <- "stemMetaDescription"
+  sourceFile <- file.path(stemedArticlesFolder, "stem_metadescriptions.csv")
+  stemedFile <- file.path(stemedArticlesFolder, "stemed_metadescriptions.csv")
+  write.csv(dt[, c("urlKey", columnToStem)], sourceFile, fileEncoding = "UTF-8")
+  system(paste0("mystem -nlc ", sourceFile, " ", stemedFile), intern = FALSE)
+ 
+  columnToStem <- "stemPlaintext"
+  sourceFile <- file.path(stemedArticlesFolder, "stem_plaintext.csv")
+  stemedFile <- file.path(stemedArticlesFolder, "stemed_plaintext.csv")
+  write.csv(dt[, c("urlKey", columnToStem)], sourceFile, fileEncoding = "UTF-8")
+  system(paste0("mystem -nlc ", sourceFile, " ", stemedFile), intern = FALSE)
 
   res<- readLines(file.path(dataFolder, "stemed_plaintext.csv"), warn = FALSE, encoding = "UTF-8")
   res <- gsub("[{}]", "", res)
