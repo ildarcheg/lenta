@@ -5,6 +5,7 @@ wget.exe
 .Rhistory
 .DS_Store
 mystem.exe
+README.html
 temp_data/
 downloaded_articles/
 parsed_articles/
