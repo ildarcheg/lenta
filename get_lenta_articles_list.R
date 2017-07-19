@@ -68,8 +68,9 @@ GetNewsListForPeriod <- function() {
 }
 
 ## STEP 2. Prepare wget CMD files for parallel downloading
-# Create CMD file
-# Downloading process takes about 3 hours
+# Create CMD file.
+# Downloading process takes about 3 hours. Expect about 70GB in html files
+# and 12GB in compressed WARC files
 CreateWgetCMDFiles <- function() {
   
   articlesLinks <- readLines(file.path(tempDataFolder, "articles.urls"))
@@ -115,7 +116,7 @@ CreateWgetCMDFiles <- function() {
 
 ## STEP 3. Parse downloaded articles
 # Create CMD file for parallel articles parsing.
-# Parsing process takes about 1 hour
+# Parsing process takes about 1 hour. Expect about 1.7Gb in parsed files
 CreateCMDForParsing <- function() {
   # get list of folders that contain downloaded articles
   folders <- list.files(downloadedArticlesFolder, full.names = FALSE, 
@@ -304,7 +305,8 @@ ReadFilesInFolder <- function(folderNumber) {
 }
 
 ## STEP 4. Prepare combined articles data
-# Read all parsed csv and combine them in one
+# Read all parsed csv and combine them in one.
+# Expect about 1.7Gb in combined file
 UnionData <- function() {
   files <- list.files(parsedArticlesFolder, full.names = TRUE, recursive = FALSE)
   dfList <- c()
