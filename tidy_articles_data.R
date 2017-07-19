@@ -232,26 +232,26 @@ TityData <- function() {
   }
   
   # Clean title, descriprion and plain text. Remove puntuation and stop words
-  stopWords <- readLines("stop_words.csv", warn = FALSE, encoding = "UTF-8")
+  stopWords <- readLines("stop_words.txt", warn = FALSE, encoding = "UTF-8")
   
-  dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = tolower(title), 
+  system.time(dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = tolower(title), 
                                    stemMetaDescription = tolower(metaDescription), 
-                                   stemPlaintext = tolower(plaintext))  %>%
-                mutate(stemTitle = enc2utf8(stemTitle), 
+                                   stemPlaintext = tolower(plaintext)))
+  system.time(dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = enc2utf8(stemTitle), 
                        stemMetaDescription = enc2utf8(stemMetaDescription), 
-                       stemPlaintext = enc2utf8(stemPlaintext))  %>% 
-                mutate(stemTitle = removeWords(stemTitle, stopWords), 
+                       stemPlaintext = enc2utf8(stemPlaintext)))
+  system.time(dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = removeWords(stemTitle, stopWords), 
                        stemMetaDescription = removeWords(stemMetaDescription, stopWords), 
-                       stemPlaintext = removeWords(stemPlaintext, stopWords))  %>% 
-                mutate(stemTitle = removePunctuation(stemTitle), 
+                       stemPlaintext = removeWords(stemPlaintext, stopWords)))
+  system.time(dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = removePunctuation(stemTitle), 
                        stemMetaDescription = removePunctuation(stemMetaDescription), 
-                       stemPlaintext = removePunctuation(stemPlaintext))  %>%    
-                mutate(stemTitle = str_replace_all(stemTitle, "\\s+", " "), 
+                       stemPlaintext = removePunctuation(stemPlaintext)))   
+  system.time(dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = str_replace_all(stemTitle, "\\s+", " "), 
                        stemMetaDescription = str_replace_all(stemMetaDescription, "\\s+", " "), 
-                       stemPlaintext = str_replace_all(stemPlaintext, "\\s+", " "))  %>%     
-                mutate(stemTitle = str_trim(stemTitle, side = "both"), 
+                       stemPlaintext = str_replace_all(stemPlaintext, "\\s+", " ")))    
+  system.time(dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = str_trim(stemTitle, side = "both"), 
                        stemMetaDescription = str_trim(stemMetaDescription, side = "both"), 
-                       stemPlaintext = str_trim(stemPlaintext, side = "both"))
+                       stemPlaintext = str_trim(stemPlaintext, side = "both")))
   
   write.csv(dtD, file.path(tidyArticlesFolder, "tidy_articles_data.csv"), fileEncoding = "UTF-8")
   
