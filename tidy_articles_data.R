@@ -30,7 +30,7 @@ TityData <- function() {
   
   dfM <- fread(file.path(parsedArticlesFolder, "untidy_articles_data.csv"), 
                stringsAsFactors = FALSE, encoding = "UTF-8")
-  
+  print(paste0("1 ",Sys.time()))
   # Remove duplicate rows, remove rows with url = NA, create urlKey column as a key
   dtD <- dfM %>% 
     select(-V1,-X)  %>% 
@@ -49,7 +49,7 @@ TityData <- function() {
     splitRight <- gsub("_", " ", splitRight)
     paste0(splitRight, collapse = "|")
   }
-  
+  print(paste0("2 ",Sys.time()))  
   # Process chapter column to retrive rubric and subrubric
   # Column value such as:
   # chapters: ["Бывший_СССР","Украина","lenta.ru:_Бывший_СССР:_Украина:_Правительство_ФРГ_сочло_неприемлемым_создание_Малороссии"], // Chapters страницы
@@ -64,6 +64,7 @@ TityData <- function() {
     filter(!rubric == "NA") %>%
     select(-chapters, -chaptersFormatted) 
   
+  print(paste0("3 ",Sys.time()))
   # Process imageCredits column and split into imageCreditsPerson 
   # and imageCreditsCompany
   # Column value such as: "Фото: Игорь Маслов / РИА Новости" should be represented
@@ -77,7 +78,7 @@ TityData <- function() {
     mutate(imageCreditsPerson = as.character(sapply(imageCreditsPerson, trimws))) %>%
     mutate(imageCreditsCompany = as.character(sapply(imageCreditsCompany, trimws))) %>%
     select(-imageCredits)
-  
+  print(paste0("4 ",Sys.time()))
   # Function UpdateDatetime is used to process missed values in datetime column
   # and fill them up with date and time retrived from string presentation 
   # such as "13:47, 18 июля 2017" or from url such 
@@ -121,6 +122,7 @@ TityData <- function() {
     mutate(datetimeNew = mapply(UpdateDatetime, datetime, datetimeString, url)) %>%
     mutate(datetime = as.POSIXct(datetimeNew, tz = "Europe/Moscow",origin = "1970-01-01"))
   
+  print(paste0("5 ",Sys.time()))  
   # Remove rows with missed datetime values, replace title with metaTitle,
   # remove columns that we do not need anymore  
   dtD <- dtD %>%
@@ -132,6 +134,7 @@ TityData <- function() {
            authorLinks, additionalLinks, plaintextLinks, imageDescription, imageCreditsPerson,
            imageCreditsCompany, videoDescription, videoCredits)
   
+  print(paste0("6 ",Sys.time()))
   # Function UpdateAdditionalLinks is used to process and clean additionalLinks 
   # and plaintextLinks
   UpdateAdditionalLinks <- function(additionalLinks, url) {
@@ -208,6 +211,7 @@ TityData <- function() {
     mutate(additionalLinks = gsub(symbolsReplace, "e", additionalLinks)) %>%
     mutate(additionalLinks = gsub(symbolsHttp2, "http://", additionalLinks))
   
+  print(paste0("7 ",Sys.time()))
   # Clean additionalLinks and plaintextLinks using UpdateAdditionalLinks 
   # function. Links such as:
   # "http://www.dw.com/ru/../B2 https://www.welt.de/politik/.../de/"
@@ -231,28 +235,29 @@ TityData <- function() {
     dtD$plaintextLinks[n1:n2] <- mapply(updateAdditionalLinksDomain, dtD$plaintextLinks[n1:n2], dtD$url[n1:n2])
   }
   
+  print(paste0("8 ",Sys.time()))
   # Clean title, descriprion and plain text. Remove puntuation and stop words
   stopWords <- readLines("stop_words.txt", warn = FALSE, encoding = "UTF-8")
   
   system.time(dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = tolower(title), 
-                                   stemMetaDescription = tolower(metaDescription), 
-                                   stemPlaintext = tolower(plaintext)))
+                                                 stemMetaDescription = tolower(metaDescription), 
+                                                 stemPlaintext = tolower(plaintext)))
   system.time(dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = enc2utf8(stemTitle), 
-                       stemMetaDescription = enc2utf8(stemMetaDescription), 
-                       stemPlaintext = enc2utf8(stemPlaintext)))
+                                                 stemMetaDescription = enc2utf8(stemMetaDescription), 
+                                                 stemPlaintext = enc2utf8(stemPlaintext)))
   system.time(dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = removeWords(stemTitle, stopWords), 
-                       stemMetaDescription = removeWords(stemMetaDescription, stopWords), 
-                       stemPlaintext = removeWords(stemPlaintext, stopWords)))
+                                                 stemMetaDescription = removeWords(stemMetaDescription, stopWords), 
+                                                 stemPlaintext = removeWords(stemPlaintext, stopWords)))
   system.time(dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = removePunctuation(stemTitle), 
-                       stemMetaDescription = removePunctuation(stemMetaDescription), 
-                       stemPlaintext = removePunctuation(stemPlaintext)))   
+                                                 stemMetaDescription = removePunctuation(stemMetaDescription), 
+                                                 stemPlaintext = removePunctuation(stemPlaintext)))   
   system.time(dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = str_replace_all(stemTitle, "\\s+", " "), 
-                       stemMetaDescription = str_replace_all(stemMetaDescription, "\\s+", " "), 
-                       stemPlaintext = str_replace_all(stemPlaintext, "\\s+", " ")))    
+                                                 stemMetaDescription = str_replace_all(stemMetaDescription, "\\s+", " "), 
+                                                 stemPlaintext = str_replace_all(stemPlaintext, "\\s+", " ")))    
   system.time(dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = str_trim(stemTitle, side = "both"), 
-                       stemMetaDescription = str_trim(stemMetaDescription, side = "both"), 
-                       stemPlaintext = str_trim(stemPlaintext, side = "both")))
-  
+                                                 stemMetaDescription = str_trim(stemMetaDescription, side = "both"), 
+                                                 stemPlaintext = str_trim(stemPlaintext, side = "both")))
+  print(paste0("9 ",Sys.time()))
   write.csv(dtD, file.path(tidyArticlesFolder, "tidy_articles_data.csv"), fileEncoding = "UTF-8")
-  
+  print(paste0("10 ",Sys.time()))
 }
