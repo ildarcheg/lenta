@@ -231,8 +231,8 @@ TityData <- function() {
   for (i in 1:length(groupsN)) {
     n1 <- groupsN[i]
     n2 <- min(n1 + groupSize - 1, numberOfLinks) 
-    dtD$additionalLinks[n1:n2] <- mapply(updateAdditionalLinksDomain, dtD$additionalLinks[n1:n2], dtD$url[n1:n2])
-    dtD$plaintextLinks[n1:n2] <- mapply(updateAdditionalLinksDomain, dtD$plaintextLinks[n1:n2], dtD$url[n1:n2])
+    dtD$additionalLinks[n1:n2] <- mapply(UpdateAdditionalLinksDomain, dtD$additionalLinks[n1:n2], dtD$url[n1:n2])
+    dtD$plaintextLinks[n1:n2] <- mapply(UpdateAdditionalLinksDomain, dtD$plaintextLinks[n1:n2], dtD$url[n1:n2])
   }
   
   print(paste0("8 ",Sys.time()))
