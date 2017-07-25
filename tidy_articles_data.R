@@ -25,11 +25,12 @@ tidyArticlesFolder <- file.path(getwd(), "tidy_articles")
 dir.create(tidyArticlesFolder, showWarnings = FALSE)
 
 ## STEP 5. Clear and tidy data
-# 
+# Section 7 takes about 2-4 hours
 TityData <- function() {
   
   dfM <- fread(file.path(parsedArticlesFolder, "untidy_articles_data.csv"), 
                stringsAsFactors = FALSE, encoding = "UTF-8")
+  # SECTION 1
   print(paste0("1 ",Sys.time()))
   # Remove duplicate rows, remove rows with url = NA, create urlKey column as a key
   dtD <- dfM %>% 
@@ -49,6 +50,8 @@ TityData <- function() {
     splitRight <- gsub("_", " ", splitRight)
     paste0(splitRight, collapse = "|")
   }
+  
+  # SECTION 2
   print(paste0("2 ",Sys.time()))  
   # Process chapter column to retrive rubric and subrubric
   # Column value such as:
@@ -64,6 +67,7 @@ TityData <- function() {
     filter(!rubric == "NA") %>%
     select(-chapters, -chaptersFormatted) 
   
+  # SECTION 3
   print(paste0("3 ",Sys.time()))
   # Process imageCredits column and split into imageCreditsPerson 
   # and imageCreditsCompany
@@ -78,6 +82,8 @@ TityData <- function() {
     mutate(imageCreditsPerson = as.character(sapply(imageCreditsPerson, trimws))) %>%
     mutate(imageCreditsCompany = as.character(sapply(imageCreditsCompany, trimws))) %>%
     select(-imageCredits)
+  
+  # SECTION 4
   print(paste0("4 ",Sys.time()))
   # Function UpdateDatetime is used to process missed values in datetime column
   # and fill them up with date and time retrived from string presentation 
@@ -122,6 +128,7 @@ TityData <- function() {
     mutate(datetimeNew = mapply(UpdateDatetime, datetime, datetimeString, url)) %>%
     mutate(datetime = as.POSIXct(datetimeNew, tz = "Europe/Moscow",origin = "1970-01-01"))
   
+  # SECTION 5
   print(paste0("5 ",Sys.time()))  
   # Remove rows with missed datetime values, replace title with metaTitle,
   # remove columns that we do not need anymore  
@@ -134,7 +141,31 @@ TityData <- function() {
            authorLinks, additionalLinks, plaintextLinks, imageDescription, imageCreditsPerson,
            imageCreditsCompany, videoDescription, videoCredits)
   
+  # SECTION 6
   print(paste0("6 ",Sys.time()))
+  # Clean additionalLinks and plaintextLinks
+  symbolsToRemove <- "href=|-–-|«|»|…|,|•|“|”|\n|\"|,|[|]|<a|<br" 
+  symbolsHttp <- "http:\\\\\\\\|:http://|-http://|.http://"
+  symbolsHttp2 <- "http://http://|https://https://"
+  symbolsReplace <- "[а-я|А-Я|#!]"
+  
+  dtD <- dtD %>% 
+    mutate(plaintextLinks = gsub(symbolsToRemove,"", plaintextLinks)) %>%
+    mutate(plaintextLinks = gsub(symbolsHttp, "http://", plaintextLinks)) %>%
+    mutate(plaintextLinks = gsub(symbolsReplace, "e", plaintextLinks)) %>%
+    mutate(plaintextLinks = gsub(symbolsHttp2, "http://", plaintextLinks)) %>%
+    mutate(additionalLinks = gsub(symbolsToRemove,"", additionalLinks)) %>%
+    mutate(additionalLinks = gsub(symbolsHttp, "http://", additionalLinks)) %>%
+    mutate(additionalLinks = gsub(symbolsReplace, "e", additionalLinks)) %>%
+    mutate(additionalLinks = gsub(symbolsHttp2, "http://", additionalLinks))
+  
+  # SECTION 7
+  print(paste0("7 ",Sys.time()))
+  # Clean additionalLinks and plaintextLinks using UpdateAdditionalLinks 
+  # function. Links such as:
+  # "http://www.dw.com/ru/../B2 https://www.welt.de/politik/.../de/"
+  # should be represented as "dw.com welt.de"
+  
   # Function UpdateAdditionalLinks is used to process and clean additionalLinks 
   # and plaintextLinks
   UpdateAdditionalLinks <- function(additionalLinks, url) {
@@ -195,27 +226,6 @@ TityData <- function() {
     }
   }
   
-  # Clean additionalLinks and plaintextLinks
-  symbolsToRemove <- "href=|-–-|«|»|…|,|•|“|”|\n|\"|,|[|]|<a|<br" 
-  symbolsHttp <- "http:\\\\\\\\|:http://|-http://|.http://"
-  symbolsHttp2 <- "http://http://|https://https://"
-  symbolsReplace <- "[а-я|А-Я|#!]"
-  
-  dtD <- dtD %>% 
-    mutate(plaintextLinks = gsub(symbolsToRemove,"", plaintextLinks)) %>%
-    mutate(plaintextLinks = gsub(symbolsHttp, "http://", plaintextLinks)) %>%
-    mutate(plaintextLinks = gsub(symbolsReplace, "e", plaintextLinks)) %>%
-    mutate(plaintextLinks = gsub(symbolsHttp2, "http://", plaintextLinks)) %>%
-    mutate(additionalLinks = gsub(symbolsToRemove,"", additionalLinks)) %>%
-    mutate(additionalLinks = gsub(symbolsHttp, "http://", additionalLinks)) %>%
-    mutate(additionalLinks = gsub(symbolsReplace, "e", additionalLinks)) %>%
-    mutate(additionalLinks = gsub(symbolsHttp2, "http://", additionalLinks))
-  
-  print(paste0("7 ",Sys.time()))
-  # Clean additionalLinks and plaintextLinks using UpdateAdditionalLinks 
-  # function. Links such as:
-  # "http://www.dw.com/ru/../B2 https://www.welt.de/politik/.../de/"
-  # should be represented as "dw.com welt.de"
   dtD <- dtD %>% 
     mutate(plaintextLinks = mapply(UpdateAdditionalLinks, plaintextLinks, url)) %>%
     mutate(additionalLinks = mapply(UpdateAdditionalLinks, additionalLinks, url))
@@ -235,29 +245,33 @@ TityData <- function() {
     dtD$plaintextLinks[n1:n2] <- mapply(UpdateAdditionalLinksDomain, dtD$plaintextLinks[n1:n2], dtD$url[n1:n2])
   }
   
+  # SECTION 8
   print(paste0("8 ",Sys.time()))
-  # Clean title, descriprion and plain text. Remove puntuation and stop words
+  # Clean title, descriprion and plain text. Remove puntuation and stop words.
+  # Prepare for the stem step
   stopWords <- readLines("stop_words.txt", warn = FALSE, encoding = "UTF-8")
   
-  system.time(dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = tolower(title), 
+  dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = tolower(title), 
                                                  stemMetaDescription = tolower(metaDescription), 
-                                                 stemPlaintext = tolower(plaintext)))
-  system.time(dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = enc2utf8(stemTitle), 
+                                                 stemPlaintext = tolower(plaintext))
+  dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = enc2utf8(stemTitle), 
                                                  stemMetaDescription = enc2utf8(stemMetaDescription), 
-                                                 stemPlaintext = enc2utf8(stemPlaintext)))
-  system.time(dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = removeWords(stemTitle, stopWords), 
+                                                 stemPlaintext = enc2utf8(stemPlaintext))
+  dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = removeWords(stemTitle, stopWords), 
                                                  stemMetaDescription = removeWords(stemMetaDescription, stopWords), 
-                                                 stemPlaintext = removeWords(stemPlaintext, stopWords)))
-  system.time(dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = removePunctuation(stemTitle), 
+                                                 stemPlaintext = removeWords(stemPlaintext, stopWords))
+  dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = removePunctuation(stemTitle), 
                                                  stemMetaDescription = removePunctuation(stemMetaDescription), 
-                                                 stemPlaintext = removePunctuation(stemPlaintext)))   
-  system.time(dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = str_replace_all(stemTitle, "\\s+", " "), 
+                                                 stemPlaintext = removePunctuation(stemPlaintext))   
+  dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = str_replace_all(stemTitle, "\\s+", " "), 
                                                  stemMetaDescription = str_replace_all(stemMetaDescription, "\\s+", " "), 
-                                                 stemPlaintext = str_replace_all(stemPlaintext, "\\s+", " ")))    
-  system.time(dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = str_trim(stemTitle, side = "both"), 
+                                                 stemPlaintext = str_replace_all(stemPlaintext, "\\s+", " "))    
+  dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = str_trim(stemTitle, side = "both"), 
                                                  stemMetaDescription = str_trim(stemMetaDescription, side = "both"), 
-                                                 stemPlaintext = str_trim(stemPlaintext, side = "both")))
+                                                 stemPlaintext = str_trim(stemPlaintext, side = "both"))
+  # SECTION 9
   print(paste0("9 ",Sys.time()))
   write.csv(dtD, file.path(tidyArticlesFolder, "tidy_articles_data.csv"), fileEncoding = "UTF-8")
+  # SECTION 10 Finish
   print(paste0("10 ",Sys.time()))
 }
