@@ -12,7 +12,18 @@
 ### Grabbing
 Первым делом мне необходимо было определиться, как сграббить и распарсить содержимое страниц ресурса. Google подсказал, что оптимальным для этого будет использование пакета [rvest](https://cran.r-project.org/web/packages/rvest/rvest.pdf), который одновременно позволяет получить текст страницы по ее адресу и при помощи xPath выдернуть содержимое нужных мне полей. Конечно, продвинувшись дальше, мне пришлось разбить эту задачу на две - получение страниц и непосредственный парсинг, но это я понял позже, а пока первым шагом было получение списка ссылок на сами статьи.
 
-После недолгого изучения, на сайте был обнаружен раздел "Архив", который при помощи простого скрипта переадресовывал меня на страницу, содержащую ссылки все новости за определенную дату и путь к этой странице выглядел как https://lenta.ru/2017/07/01/ или https://lenta.ru/2017/03/09/. Оставалось только пройтись по всем этим страницам и получить эти самые новостные ссылки. В чем мне и помог этот нехитрый код:
+После недолгого изучения, на сайте был обнаружен раздел "Архив", который при помощи простого скрипта переадресовывал меня на страницу, содержащую ссылки все новости за определенную дату и путь к этой странице выглядел как https://lenta.ru/2017/07/01/ или https://lenta.ru/2017/03/09/. Оставалось только пройтись по всем этим страницам и получить эти самые новостные ссылки. 
+Для этих целей (граббинга и парсинга) так или иначе использовал следующие пакеты:
+```R
+require(lubridate)
+require(rvest)
+require(dplyr)
+require(purrr)
+require(XML)
+require(data.table)
+```
+
+Не хитрый код, который позволил получить все ссылки на все статьи за последние 8 лет:
 ```R
   # prepare vector of links of archive pages in https://lenta.ru//yyyy/mm/dd/ format
   dayArray <- seq(as.Date(articlesStartDate), as.Date(articlesEndDate), 
@@ -79,7 +90,7 @@
 
 Первые замеры производительности показали, что для закачки `2000` ссылок было потрачено `10 минут`, методом экстраполяции (давно хотел использовать это слово) получал `1890 минут` для всех статей - "олмост три таймс фастер бат нот энаф" - почти в три раза быстрее, но все равно недостаточно. Вернувшись на пару шагов назад и протестив новый механизм с учетом `parallel-package {parallel}`, понял, что и здесь профита не светит.
 
-Оставался ход конем. Запуск нескольких по-настоящему параллельных процессов. С учетом того, что от "reproducible research" (принцип, о котором говорили на курсах) шаг в сторону я уже сделал (использовав внешнюю программу wget и фактически привязав выполнение к среде Windows), я решил сделать еще один шаг и снова вернуться к идее запуска параллельных процессов, однако уже вне R. Как заставить CMD файл выполнять несколько последовательных команд, не дожидаясь выполнения предыдущей (читай параллельно), спустя пару часов гуглинга рассказал все тот же [stackoverflow](https://stackoverflow.com). Оказалось, что замечательная команда `START` позволяет запустить команду на выполнение в отдельном окне. Вооружившись этим знанием, разродился следующим кодом:
+Оставался ход конем. Запуск нескольких по-настоящему параллельных процессов. С учетом того, что от "reproducible research" (принцип, о котором говорили на курсах) шаг в сторону я уже сделал (использовав внешнюю программу wget и фактически привязав выполнение к среде Windows), я решил сделать еще один шаг и снова вернуться к идее запуска параллельных процессов, однако уже вне R. Как заставить CMD файл выполнять несколько последовательных команд, не дожидаясь выполнения предыдущей (читай параллельно), рассказал все тот же [stackoverflow](https://stackoverflow.com). Оказалось, что замечательная команда `START` позволяет запустить команду на выполнение в отдельном окне. Вооружившись этим знанием, разродился следующим кодом:
 
 ```R
   articlesLinks <- readLines(file.path(tempDataFolder, "articles.urls"))
@@ -452,7 +463,288 @@ Read 379746 rows and 21 (of 21) columns from 1.698 GB file in 00:00:18
        17.67         0.54        18.22 
 ```
 Ну а дальше предстояло проверить каждую колонку таблицы, есть ли в ней что-нибудь вменяемое или там только `NA`. И если что-то есть - привести это что-то к читаемому виду (а этом этапе мне пришлось несколько раз подпиливать Parsing). В итоге код, который приводил дату в вид, готовый для анализа стал таким:
+```R
+require(lubridate)
+require(dplyr)
+require(tidyr)
+require(data.table)
+require(tldextract)
+require(XML)
+require(stringr)
+require(tm)
 
+# Set workling directory and locale for macOS and Windows
+if (Sys.info()['sysname'] == "Windows") {
+  workingDirectory <- paste0(Sys.getenv("HOMEPATH"), "\\lenta") 
+  Sys.setlocale("LC_ALL", "Russian")
+} else {
+  workingDirectory <- ("~/lenta")
+  Sys.setlocale("LC_ALL", "ru_RU.UTF-8")
+}
+setwd(workingDirectory)
+
+# Set common variables
+parsedArticlesFolder <- file.path(getwd(), "parsed_articles")
+tidyArticlesFolder <- file.path(getwd(), "tidy_articles")
+
+# Creare required folders if not exist 
+dir.create(tidyArticlesFolder, showWarnings = FALSE)
+
+## STEP 5. Clear and tidy data
+# Section 7 takes about 2-4 hours
+TityData <- function() {
+  
+  dfM <- fread(file.path(parsedArticlesFolder, "untidy_articles_data.csv"), 
+               stringsAsFactors = FALSE, encoding = "UTF-8")
+  # SECTION 1
+  print(paste0("1 ",Sys.time()))
+  # Remove duplicate rows, remove rows with url = NA, create urlKey column as a key
+  dtD <- dfM %>% 
+    select(-V1,-X)  %>% 
+    distinct(url, .keep_all=TRUE) %>% 
+    na.omit(cols="url") %>%
+    mutate(urlKey = gsub(":|\\.|/", "", url))
+  
+  # Function SplitChapters is used to process formatted chapter column and retrive rubric 
+  # and subrubric  
+  SplitChapters <- function(x) {
+    splitOne <- strsplit(x, "lenta.ru:_")[[1]]
+    splitLeft <- strsplit(splitOne[1], ",")[[1]]
+    splitLeft <- unlist(strsplit(splitLeft, ":_"))
+    splitRight <- strsplit(splitOne[2], ":_")[[1]]
+    splitRight <- splitRight[splitRight %in% splitLeft]
+    splitRight <- gsub("_", " ", splitRight)
+    paste0(splitRight, collapse = "|")
+  }
+  
+  # SECTION 2
+  print(paste0("2 ",Sys.time()))  
+  # Process chapter column to retrive rubric and subrubric
+  # Column value such as:
+  # chapters: ["Бывший_СССР","Украина","lenta.ru:_Бывший_СССР:_Украина:_Правительство_ФРГ_сочло_неприемлемым_создание_Малороссии"], // Chapters страницы
+  # should be represented as rubric value "Бывший СССР" 
+  # and subrubric value "Украина"
+  dtD <- dtD %>% 
+    mutate(chapters = gsub('\"|\\[|\\]| |chapters:', "", chapters)) %>%
+    select(-rubric) %>%
+    mutate(chaptersFormatted = as.character(sapply(chapters, SplitChapters))) %>%
+    separate(col = "chaptersFormatted", into = c("rubric", "subrubric")
+             , sep = "\\|", extra = "drop", fill = "right", remove = FALSE) %>%
+    filter(!rubric == "NA") %>%
+    select(-chapters, -chaptersFormatted) 
+  
+  # SECTION 3
+  print(paste0("3 ",Sys.time()))
+  # Process imageCredits column and split into imageCreditsPerson 
+  # and imageCreditsCompany
+  # Column value such as: "Фото: Игорь Маслов / РИА Новости" should be represented
+  # as imageCreditsPerson value "Игорь Маслов" and 
+  # imageCreditsCompany value "РИА Новости"
+  pattern <- 'Фото: |Фото |Кадр: |Изображение: |, архив|(архив)|©|«|»|\\(|)|\"'
+  dtD <- dtD %>% 
+    mutate(imageCredits = gsub(pattern, "", imageCredits)) %>%
+    separate(col = "imageCredits", into = c("imageCreditsPerson", "imageCreditsCompany")
+             , sep = "/", extra = "drop", fill = "left", remove = FALSE) %>%
+    mutate(imageCreditsPerson = as.character(sapply(imageCreditsPerson, trimws))) %>%
+    mutate(imageCreditsCompany = as.character(sapply(imageCreditsCompany, trimws))) %>%
+    select(-imageCredits)
+  
+  # SECTION 4
+  print(paste0("4 ",Sys.time()))
+  # Function UpdateDatetime is used to process missed values in datetime column
+  # and fill them up with date and time retrived from string presentation 
+  # such as "13:47, 18 июля 2017" or from url such 
+  # as https://lenta.ru/news/2017/07/18/frg/. Hours and Minutes set randomly
+  # from 8 to 21 in last case
+  months <- c("января", "февраля", "марта", "апреля", "мая", "июня", "июля", 
+              "августа", "сентября", "октября", "ноября", "декабря")
+  UpdateDatetime <- function (datetime, datetimeString, url) {
+    datetimeNew <- datetime
+    if (is.na(datetime)) { 
+      if (is.na(datetimeString)) {
+        parsedURL <- strsplit(url, "/")[[1]]
+        parsedURLLength <- length(parsedURL)
+        d <- parsedURL[parsedURLLength-1]
+        m <- parsedURL[parsedURLLength-2]
+        y <- parsedURL[parsedURLLength-3] 
+        H <- round(runif(1, 8, 21))
+        M <- round(runif(1, 1, 59))
+        S <- 0
+        datetimeString <- paste0(paste0(c(y, m, d), collapse = "-"), " ", 
+                                 paste0(c(H, M, S), collapse = ":"))
+        datetimeNew <- ymd_hms(datetimeString, tz = "Europe/Moscow", quiet = TRUE)
+      } else {
+        parsedDatetimeString <- unlist(strsplit(datetimeString, ",")) %>% 
+          trimws %>% 
+          strsplit(" ") %>% 
+          unlist()
+        monthNumber <- which(grepl(parsedDatetimeString[3], months))
+        dateString <- paste0(c(parsedDatetimeString[4], monthNumber, 
+                               parsedDatetimeString[2]), collapse = "-")
+        datetimeString <- paste0(dateString, " ", parsedDatetimeString[1], ":00")
+        datetimeNew <- ymd_hms(datetimeString, tz = "Europe/Moscow", quiet = TRUE)
+      }
+    }  
+    datetimeNew
+  }
+  
+  # Process datetime and fill up missed values
+  dtD <- dtD %>% 
+    mutate(datetime = ymd_hms(datetime, tz = "Europe/Moscow", quiet = TRUE)) %>% 
+    mutate(datetimeNew = mapply(UpdateDatetime, datetime, datetimeString, url)) %>%
+    mutate(datetime = as.POSIXct(datetimeNew, tz = "Europe/Moscow",origin = "1970-01-01"))
+  
+  # SECTION 5
+  print(paste0("5 ",Sys.time()))  
+  # Remove rows with missed datetime values, replace title with metaTitle,
+  # remove columns that we do not need anymore  
+  dtD <- dtD %>%
+    as.data.table() %>%
+    na.omit(cols="datetime") %>%
+    select(-filename, -title, -metaType, -datetimeString, -datetimeNew) %>%
+    rename(title = metaTitle) %>%
+    select(url, urlKey, datetime, rubric, subrubric, title, metaDescription, plaintext, 
+           authorLinks, additionalLinks, plaintextLinks, imageDescription, imageCreditsPerson,
+           imageCreditsCompany, videoDescription, videoCredits)
+  
+  # SECTION 6
+  print(paste0("6 ",Sys.time()))
+  # Clean additionalLinks and plaintextLinks
+  symbolsToRemove <- "href=|-–-|«|»|…|,|•|“|”|\n|\"|,|[|]|<a|<br" 
+  symbolsHttp <- "http:\\\\\\\\|:http://|-http://|.http://"
+  symbolsHttp2 <- "http://http://|https://https://"
+  symbolsReplace <- "[а-я|А-Я|#!]"
+  
+  dtD <- dtD %>% 
+    mutate(plaintextLinks = gsub(symbolsToRemove,"", plaintextLinks)) %>%
+    mutate(plaintextLinks = gsub(symbolsHttp, "http://", plaintextLinks)) %>%
+    mutate(plaintextLinks = gsub(symbolsReplace, "e", plaintextLinks)) %>%
+    mutate(plaintextLinks = gsub(symbolsHttp2, "http://", plaintextLinks)) %>%
+    mutate(additionalLinks = gsub(symbolsToRemove,"", additionalLinks)) %>%
+    mutate(additionalLinks = gsub(symbolsHttp, "http://", additionalLinks)) %>%
+    mutate(additionalLinks = gsub(symbolsReplace, "e", additionalLinks)) %>%
+    mutate(additionalLinks = gsub(symbolsHttp2, "http://", additionalLinks))
+  
+  # SECTION 7
+  print(paste0("7 ",Sys.time()))
+  # Clean additionalLinks and plaintextLinks using UpdateAdditionalLinks 
+  # function. Links such as:
+  # "http://www.dw.com/ru/../B2 https://www.welt.de/politik/.../de/"
+  # should be represented as "dw.com welt.de"
+  
+  # Function UpdateAdditionalLinks is used to process and clean additionalLinks 
+  # and plaintextLinks
+  UpdateAdditionalLinks <- function(additionalLinks, url) {
+    if (is.na(additionalLinks)) {
+      return(NA)
+    }
+    
+    additionalLinksSplitted <- gsub("http://|https://|http:///|https:///"," ", additionalLinks)
+    additionalLinksSplitted <- gsub("http:/|https:/|htt://","", additionalLinksSplitted)
+    additionalLinksSplitted <- trimws(additionalLinksSplitted)
+    additionalLinksSplitted <- unlist(strsplit(additionalLinksSplitted, " "))
+    additionalLinksSplitted <- additionalLinksSplitted[!additionalLinksSplitted==""]
+    additionalLinksSplitted <- additionalLinksSplitted[!grepl("lenta.", additionalLinksSplitted)]
+    additionalLinksSplitted <- unlist(strsplit(additionalLinksSplitted, "/[^/]*$"))
+    additionalLinksSplitted <- paste0("http://", additionalLinksSplitted)
+    
+    if (!length(additionalLinksSplitted) == 0) {
+      URLSplitted <- c()
+      for(i in 1:length(additionalLinksSplitted)) {
+        parsed <- tryCatch(parseURI(additionalLinksSplitted[i]), error = function(x) {return(NA)}) 
+        parsedURL <- parsed["server"]
+        if (!is.na(parsedURL)) {
+          URLSplitted <- c(URLSplitted, parsedURL) 
+        }
+      }
+      if (length(URLSplitted)==0){
+        NA
+      } else {
+        URLSplitted <- URLSplitted[!is.na(URLSplitted)]
+        paste0(URLSplitted, collapse = " ")
+      }
+    } else {
+      NA
+    }
+  }
+  
+  # Function UpdateAdditionalLinksDomain is used to process additionalLinks 
+  # and plaintextLinks and retrive source domain name
+  UpdateAdditionalLinksDomain <- function(additionalLinks, url) {
+    if (is.na(additionalLinks)|(additionalLinks=="NA")) {
+      return(NA)
+    }
+    additionalLinksSplitted <- unlist(strsplit(additionalLinks, " "))
+    if (!length(additionalLinksSplitted) == 0) {
+      parsedDomain <- tryCatch(tldextract(additionalLinksSplitted), error = function(x) {data_frame(domain = NA, tld = NA)}) 
+      parsedDomain <- parsedDomain[!is.na(parsedDomain$domain), ]
+      if (nrow(parsedDomain)==0) {
+        #print("--------")
+        #print(additionalLinks)
+        return(NA)
+      }
+      domain <- paste0(parsedDomain$domain, ".", parsedDomain$tld)
+      domain <- unique(domain)
+      domain <- paste0(domain, collapse = " ")
+      return(domain)
+    } else {
+      return(NA)
+    }
+  }
+  
+  dtD <- dtD %>% 
+    mutate(plaintextLinks = mapply(UpdateAdditionalLinks, plaintextLinks, url)) %>%
+    mutate(additionalLinks = mapply(UpdateAdditionalLinks, additionalLinks, url))
+  
+  # Retrive domain from external links using updateAdditionalLinksDomain 
+  # function. Links such as:
+  # "http://www.dw.com/ru/../B2 https://www.welt.de/politik/.../de/"
+  # should be represented as "dw.com welt.de"  
+  numberOfLinks <- nrow(dtD)
+  groupSize <- 10000
+  groupsN <- seq(from = 1, to = numberOfLinks, by = groupSize)
+  
+  for (i in 1:length(groupsN)) {
+    n1 <- groupsN[i]
+    n2 <- min(n1 + groupSize - 1, numberOfLinks) 
+    dtD$additionalLinks[n1:n2] <- mapply(UpdateAdditionalLinksDomain, dtD$additionalLinks[n1:n2], dtD$url[n1:n2])
+    dtD$plaintextLinks[n1:n2] <- mapply(UpdateAdditionalLinksDomain, dtD$plaintextLinks[n1:n2], dtD$url[n1:n2])
+  }
+  
+  # SECTION 8
+  print(paste0("8 ",Sys.time()))
+  # Clean title, descriprion and plain text. Remove puntuation and stop words.
+  # Prepare for the stem step
+  stopWords <- readLines("stop_words.txt", warn = FALSE, encoding = "UTF-8")
+  
+  dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = tolower(title), 
+                                                 stemMetaDescription = tolower(metaDescription), 
+                                                 stemPlaintext = tolower(plaintext))
+  dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = enc2utf8(stemTitle), 
+                                                 stemMetaDescription = enc2utf8(stemMetaDescription), 
+                                                 stemPlaintext = enc2utf8(stemPlaintext))
+  dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = removeWords(stemTitle, stopWords), 
+                                                 stemMetaDescription = removeWords(stemMetaDescription, stopWords), 
+                                                 stemPlaintext = removeWords(stemPlaintext, stopWords))
+  dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = removePunctuation(stemTitle), 
+                                                 stemMetaDescription = removePunctuation(stemMetaDescription), 
+                                                 stemPlaintext = removePunctuation(stemPlaintext))   
+  dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = str_replace_all(stemTitle, "\\s+", " "), 
+                                                 stemMetaDescription = str_replace_all(stemMetaDescription, "\\s+", " "), 
+                                                 stemPlaintext = str_replace_all(stemPlaintext, "\\s+", " "))    
+  dtD <- dtD %>% as.tbl() %>% mutate(stemTitle = str_trim(stemTitle, side = "both"), 
+                                                 stemMetaDescription = str_trim(stemMetaDescription, side = "both"), 
+                                                 stemPlaintext = str_trim(stemPlaintext, side = "both"))
+  # SECTION 9
+  print(paste0("9 ",Sys.time()))
+  write.csv(dtD, file.path(tidyArticlesFolder, "tidy_articles_data.csv"), fileEncoding = "UTF-8")
+  # SECTION 10 Finish
+  print(paste0("10 ",Sys.time()))
+}
+```
+
+Так как внезапно столкнулся с длительным исполнением кода, добавил секции и `time stamp` в виде `print(paste0("1 ",Sys.time()))`. Результаты на собственном макбуке `2.7GHz i5, 16Gb Ram, SSD, macOS 10.12, R version 3.4.0`:
+```
 [1] "1 2017-07-21 16:36:59"
 [1] "2 2017-07-21 16:37:13"
 [1] "3 2017-07-21 16:38:15"
@@ -463,9 +755,10 @@ Read 379746 rows and 21 (of 21) columns from 1.698 GB file in 00:00:18
 [1] "8 2017-07-21 18:41:25"
 [1] "9 2017-07-21 19:00:32"
 [1] "10 2017-07-21 19:01:04"
+```
 
-
-
+Результаты на сервере `3.5GHz Xeon E-1240 v5, 32Gb, SSD, Windows Server 2012`:
+```
 [1] "1 2017-07-21 14:36:44"
 [1] "2 2017-07-21 14:37:08"
 [1] "3 2017-07-21 14:38:23"
@@ -476,3 +769,44 @@ Read 379746 rows and 21 (of 21) columns from 1.698 GB file in 00:00:18
 [1] "8 2017-07-21 18:58:04"
 [1] "9 2017-07-21 19:30:27"
 [1] "10 2017-07-21 19:35:18"
+```
+
+Внезапно (а может и ожидаемо), выполнение функции `UpdateAdditionalLinksDomain` (которая выдергивает домен и доменную зону для формирования ключа источника) стало самым времязатратным местом. Причем все упиралось в метод `tldextract {tldextract}`. На самом деле уделять время на дополнительную оптимизацию я не стал и если кто-нибудь сходу тыкнет пальцем куда копнуть - обязательно выделю время и попробую оптимизировать.
+
+Кстати, вопрос залу - почему казалось бы заведомо более мощный сервер выполняет одинаковый код в 2 раза медленее? Секция 7 выполняется 4 часа против 2 часов на макбуке.
+
+В целом по камментам думаю понятно, какие преобразования происходят над данными. Результат:
+```
+> str(dfM, vec.len = 1)
+'data.frame':   379746 obs. of  21 variables:
+ $ X.1             : int  1 2 ...
+ $ X               : int  1 2 ...
+ $ url             : chr  "https://lenta.ru/news/2009/12/31/kids/" ...
+ $ filename        : chr  "C:/Users/ildar/lenta/downloaded_articles/000001-010000/index.html" ...
+> str(dfM, vec.len = 1)
+Classes ‘data.table’ and 'data.frame':  376913 obs. of  19 variables:
+ $ url                : chr  "https://lenta.ru/news/2009/12/31/kids/" ...
+ $ urlKey             : chr  "httpslentarunews20091231kids" ...
+ $ datetime           : chr  "2010-01-01 00:24:33" ...
+ $ rubric             : chr  "Россия" ...
+ $ subrubric          : chr  NA ...
+ $ title              : chr  "Новым детским омбудсменом стал телеведущий Павел Астахов" ...
+ $ metaDescription    : chr  "Президент РФ Дмитрий Медведев назначил нового уполномоченного по правам ребенка в России. Вместо Алексея Голова"| __truncated__ ...
+ $ plaintext          : chr  "Президент РФ Дмитрий Медведев назначил нового уполномоченного по правам ребенка в России. Вместо Алексея Голова"| __truncated__ ...
+ $ authorLinks        : chr  NA ...
+ $ additionalLinks    : chr  NA ...
+ $ plaintextLinks     : chr  "interfax.ru" ...
+ $ imageDescription   : chr  NA ...
+ $ imageCreditsPerson : chr  NA ...
+ $ imageCreditsCompany: chr  NA ...
+ $ videoDescription   : chr  NA ...
+ $ videoCredits       : chr  NA ...
+ $ stemTitle          : chr  "новым детским омбудсменом стал телеведущий павел астахов" ...
+ $ stemMetaDescription: chr  "президент рф дмитрий медведев назначил нового уполномоченного правам ребенка россии вместо алексея голованя про"| __truncated__ ...
+ $ stemPlaintext      : chr  "президент рф дмитрий медведев назначил нового уполномоченного правам ребенка россии вместо алексея голованя про"| __truncated__ ...
+```
+Все готово для финального шага.
+
+### STEMMING 
+
+Даже для простого анализа, как часто употребляется то или иное слово, нужно "Путина", "Путину", "Путиным" привести к единому "Путин". Для этого гугл мне нашел [MyStem](https://tech.yandex.ru/mystem/) - консольную программу от яндекса, которая как раз подобным и занимается (лемматизацией).
