@@ -58,8 +58,28 @@ StemArticlesData <- function() {
   print(paste0("4 ", Sys.time()))
   
   system.time(res<- readLines(file.path(stemedArticlesFolder, "stemed_titles.txt"), warn = FALSE, encoding = "UTF-8"))
+  res1 <- res
+  
+  res <- res1
   system.time(res <- gsub("[{}]", "", res))
   system.time(res <- gsub("(\\|[^ ]+)", "", res))
-  system.time(res <- gsub("\\?|\\\\n|,", "", res))
+  system.time(res <- gsub("\\?|,", "", res))
   system.time(res <- gsub("\\s+", " ", res))
+  system.time(res <- unlist(strsplit(res, split = "\\\\n")))
+  system.time(res <- gsub("(\\\\[^ ]+)", "", res))
+  system.time(res <- gsub("_", "", res))
+  system.time(res <- res[res!=""])
+  system.time(sep <- which(grepl("httpslentaru|httplentaru", res)))
+  sep <- c(sep, length(res)+1)
+  
+  print(Sys.time())
+  df <- data.frame(urlKey = character(), type = character(), content = character(), stringsAsFactors = FALSE)
+  for(i in 1:(length(sep)-1)){
+    #print(sep[i])
+    #print(paste0(sep[i]+1, ":", sep[i+1]-1))
+    df[i, "urlKey"] <- sep[i]
+    df[i, "type"] <- "stemedTitles"
+    df[i, "content"] <- paste0(res[(sep[i]+1):(sep[i+1]-1)], collapse = " ")
+  }
+  print(Sys.time())
 }
