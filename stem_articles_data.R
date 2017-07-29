@@ -1,6 +1,7 @@
 require(data.table)
 require(dplyr)
 require(tidyr)
+require(stringr)
 
 # Set workling directory and locale for macOS and Windows
 if (Sys.info()['sysname'] == "Windows") {
@@ -23,7 +24,8 @@ dir.create(stemedArticlesFolder, showWarnings = FALSE)
 # Write columns on disk, run mystem, read stemed data and add to data.table
 StemArticlesData <- function() {
   
-  dfM <- fread(file.path(tidyArticlesFolder, "tidy_articles_data.csv"), stringsAsFactors = FALSE, encoding = "UTF-8")
+  #dfM <- fread(file.path(tidyArticlesFolder, "tidy_articles_data.csv"), stringsAsFactors = FALSE, encoding = "UTF-8")
+  dfM <- read.csv(file.path(tidyArticlesFolder, "tidy_articles_data.csv"), stringsAsFactors = FALSE, encoding = "UTF-8")
   dfM <- dfM[, -c("V1")]
   dt <- dfM %>% as.tbl() %>% select(urlKey, stemTitle, stemMetaDescription, stemPlaintext)  
   
@@ -61,13 +63,9 @@ StemArticlesData <- function() {
   res1 <- res
   
   res <- res1
-  system.time(res <- gsub("[{}]", "", res))
-  system.time(res <- gsub("(\\|[^ ]+)", "", res))
-  system.time(res <- gsub("\\?|,", "", res))
-  system.time(res <- gsub("\\s+", " ", res))
-  system.time(res <- unlist(strsplit(res, split = "\\\\n")))
-  system.time(res <- gsub("(\\\\[^ ]+)", "", res))
-  system.time(res <- gsub("_", "", res))
+  system.time(res <- res %>% 
+                strsplit(split = "\\\\n") %>% unlist() %>% 
+                str_replace_all("(\\|[^ ]+)|(\\\\[^ ]+)|\\?|,|_", ""))
   system.time(res <- res[res!=""])
   system.time(sep <- which(grepl("httpslentaru|httplentaru", res)))
   sep <- c(sep, length(res)+1)
