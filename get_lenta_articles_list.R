@@ -24,6 +24,15 @@ warcFolder <- file.path(downloadedArticlesFolder, "warc")
 parsedArticlesFolder <- file.path(getwd(), "parsed_articles")
 commandsFolder <- file.path(tempDataFolder, "commands")
 
+downloadedArticlesFolderForFB <- file.path(getwd(), "downloaded_articles/fb")
+warcFolderForFB <- file.path(downloadedArticlesFolderForFB, "warc")
+downloadedArticlesFolderForVK <- file.path(getwd(), "downloaded_articles/vk")
+warcFolderForVK <- file.path(downloadedArticlesFolderForVK, "warc")
+downloadedArticlesFolderForOK <- file.path(getwd(), "downloaded_articles/ok")
+warcFolderForOK <- file.path(downloadedArticlesFolderForOK , "warc")
+downloadedArticlesFolderForCom <- file.path(getwd(), "downloaded_articles/com")
+warcFolderForCom <- file.path(downloadedArticlesFolderForCom , "warc")
+
 articlesStartDate <- as.Date("2010-01-01")
 articlesEndDate <- as.Date("2017-06-30")
 
@@ -33,6 +42,10 @@ dir.create(downloadedArticlesFolder, showWarnings = FALSE)
 dir.create(parsedArticlesFolder, showWarnings = FALSE)
 dir.create(commandsFolder, showWarnings = FALSE)
 dir.create(warcFolder, showWarnings = FALSE)
+dir.create(downloadedArticlesFolderForFB , showWarnings = FALSE)
+dir.create(downloadedArticlesFolderForVK , showWarnings = FALSE)
+dir.create(downloadedArticlesFolderForOK , showWarnings = FALSE)
+dir.create(downloadedArticlesFolderForCom , showWarnings = FALSE)
 
 ## SERVICE FUNCTION
 SetNAIfZeroLength <- function(param) {
@@ -51,15 +64,15 @@ GetNewsListForPeriod <- function() {
   dayArray <- seq(as.Date(articlesStartDate), as.Date(articlesEndDate), 
                   by="days")
   archivePagesLinks <- paste0(baseURL, "/", year(dayArray), 
-                      "/", formatC(month(dayArray), width = 2, format = "d", flag = "0"), 
-                      "/", formatC(day(dayArray), width = 2, format = "d", flag = "0"), 
-                      "/")
+                              "/", formatC(month(dayArray), width = 2, format = "d", flag = "0"), 
+                              "/", formatC(day(dayArray), width = 2, format = "d", flag = "0"), 
+                              "/")
   articlesLinks <- c()
   for (i in 1:length(archivePagesLinks)) {
     pg <- read_html(archivePagesLinks[i], encoding = "UTF-8")
     total <- html_nodes(pg, 
-              xpath=".//section[@class='b-longgrid-column']//div[@class='titles']//a") %>% 
-              html_attr("href")   
+                        xpath=".//section[@class='b-longgrid-column']//div[@class='titles']//a") %>% 
+      html_attr("href")   
     articlesLinks <- c(articlesLinks, total)
     saveRDS(articlesLinks, file.path(tempDataFolder, "tempArticlesLinks.rds"))
   }
@@ -95,14 +108,16 @@ CreateWgetCMDFiles <- function() {
     subFolderName <- paste0(leftPartFolderName, "-", rigthPartFolderName)
     subFolderPath <- file.path(downloadedArticlesFolder, subFolderName)
     dir.create(subFolderPath)
-
+    
     # write articles.urls for each 10K folders that contains 10K articles urls
     writeLines(articlesLinks[firstFileInGroup:lastFileInGroup], 
                file.path(subFolderPath, "articles.urls"))
     
     # add command line in CMD file as:
     # START wget --warc-file=warc\000001-010000 -i 000001-010000\list.urls -P 000001-010000
-    cmdCode <-paste0("START ..\\wget --warc-file=warc\\", subFolderName," -i ", 
+    #cmdCode <-paste0("START ..\\wget --warc-file=warc\\", subFolderName," -i ", 
+    #                 subFolderName, "\\", "articles.urls -P ", subFolderName)
+    cmdCode <-paste0("START ..\\wget -i ", 
                      subFolderName, "\\", "articles.urls -P ", subFolderName)
     cmdCodeAll <- c(cmdCodeAll, cmdCode)
   }
@@ -110,6 +125,108 @@ CreateWgetCMDFiles <- function() {
   cmdFile <- file.path(downloadedArticlesFolder, "start.cmd")
   writeLines(cmdCodeAll, cmdFile)
   print(paste0("Run ", cmdFile, " to start downloading."))
+  print("wget.exe should be placed in working directory.")
+  
+}
+
+## STEP 2. Prepare wget CMD files for parallel downloading social
+# Create CMD file.
+
+CreateWgetCMDFilesForSocial <- function() {
+  
+  articlesLinks <- readLines(file.path(tempDataFolder, "articles.urls"))
+  dir.create(warcFolder, showWarnings = FALSE)
+  dir.create(warcFolderForFB, showWarnings = FALSE)
+  dir.create(warcFolderForVK, showWarnings = FALSE)
+  dir.create(warcFolderForOK, showWarnings = FALSE)
+  dir.create(warcFolderForCom, showWarnings = FALSE)
+  
+  # split up articles links array by 10K links 
+  numberOfLinks <- length(articlesLinks)
+  digitNumber <- nchar(numberOfLinks)
+  groupSize <- 10000
+  filesGroup <- seq(from = 1, to = numberOfLinks, by = groupSize)
+  cmdCodeAll <- c()
+  
+  cmdCodeAllFB <- c()
+  cmdCodeAllVK <- c()
+  cmdCodeAllOK <- c()
+  cmdCodeAllCom <- c() 
+  
+  #articlesLinksEncoded <- sapply(articlesLinks, URLencode, reserved = TRUE)
+  
+  for (i in 1:length(filesGroup)) {
+    
+    # prepare folder name as 00001-10000, 10001-20000 etc
+    firstFileInGroup <- filesGroup[i]
+    lastFileInGroup <- min(firstFileInGroup + groupSize - 1, numberOfLinks)
+    leftPartFolderName <- formatC(firstFileInGroup, width = digitNumber, 
+                                  format = "d", flag = "0")
+    rigthPartFolderName <- formatC(lastFileInGroup, width = digitNumber, 
+                                   format = "d", flag = "0")
+    subFolderName <- paste0(leftPartFolderName, "-", rigthPartFolderName)
+    
+    subFolderPathFB <- file.path(downloadedArticlesFolderForFB, subFolderName)
+    dir.create(subFolderPathFB)
+    subFolderPathVK <- file.path(downloadedArticlesFolderForVK, subFolderName)
+    dir.create(subFolderPathVK)
+    subFolderPathOK <- file.path(downloadedArticlesFolderForOK, subFolderName)
+    dir.create(subFolderPathOK)
+    subFolderPathCom <- file.path(downloadedArticlesFolderForCom, subFolderName)
+    dir.create(subFolderPathCom)
+    
+    # write articles.urls for each 10K folders that contains 10K articles urls
+    
+    articlesLinksFB <- articlesLinks[firstFileInGroup:lastFileInGroup]
+    numberOfLinksFB <- length(articlesLinksFB)
+    digitNumberFB <- nchar(numberOfLinksFB)
+    groupSizeFB <- 50
+    filesGroupFB <- seq(from = 1, to = numberOfLinksFB, by = groupSizeFB)
+    articlesLinksFBEncoded <- c()
+    for (k in 1:length(filesGroupFB )) {
+      firstFileInGroupFB <- filesGroupFB[k]
+      lastFileInGroupFB <- min(firstFileInGroupFB + groupSizeFB - 1, numberOfLinksFB)	
+      articlesLinksFBGroup <- paste0(articlesLinksFB[firstFileInGroupFB:lastFileInGroupFB], collapse = ",")
+      articlesLinksFBGroup <- URLencode(articlesLinksFBGroup , reserved = TRUE)
+      articlesLinksFBGroup <- paste0("https://graph.facebook.com/?fields=engagement&access_token=144213186161556|oTvA5NHlj3DdBNmzjp8zwnf-JlA&ids=", articlesLinksFBGroup)
+      articlesLinksFBEncoded  <- c(articlesLinksFBEncoded, articlesLinksFBGroup)
+    }
+    articlesLinksVK <- paste0("https://vk.com/share.php?act=count&index=1&url=", 
+                              sapply(articlesLinks[firstFileInGroup:lastFileInGroup], URLencode, reserved = TRUE), "&format=json")
+    articlesLinksOK <- paste0("https://connect.ok.ru/dk?st.cmd=extLike&uid=okLenta&ref=", 
+                              sapply(articlesLinks[firstFileInGroup:lastFileInGroup], URLencode, reserved = TRUE), "")
+    articlesLinksCom <- paste0("https://c.rambler.ru/api/app/126/comments-count?xid=", 
+                               sapply(articlesLinks[firstFileInGroup:lastFileInGroup], URLencode, reserved = TRUE), "")
+    
+    writeLines(articlesLinksFBEncoded, file.path(subFolderPathFB, "articles.urls"))
+    writeLines(articlesLinksVK, file.path(subFolderPathVK, "articles.urls"))
+    writeLines(articlesLinksOK, file.path(subFolderPathOK, "articles.urls"))
+    writeLines(articlesLinksCom, file.path(subFolderPathCom, "articles.urls"))
+    
+    # add command line in CMD file as:
+    # START wget --warc-file=warc\000001-010000 -i 000001-010000\list.urls -P 000001-010000
+    # --output-document=700001-701269\ololo22 
+    cmdCode <-paste0("START ..\\..\\wget --warc-file=warc\\", subFolderName," -i ", 
+                     subFolderName, "\\", "articles.urls -P ", subFolderName, 
+                     " --output-document=", subFolderName, "\\", "index")
+    
+    cmdCodeAll <- c(cmdCodeAll, cmdCode)
+  }
+  
+  cmdFile <- file.path(downloadedArticlesFolderForFB, "start.cmd")
+  print(paste0("Run ", cmdFile, " to start downloading."))
+  writeLines(cmdCodeAll, cmdFile)
+  cmdFile <- file.path(downloadedArticlesFolderForVK, "start.cmd")
+  writeLines(cmdCodeAll, cmdFile)
+  print(paste0("Run ", cmdFile, " to start downloading."))
+  cmdFile <- file.path(downloadedArticlesFolderForOK, "start.cmd")
+  writeLines(cmdCodeAll, cmdFile)
+  print(paste0("Run ", cmdFile, " to start downloading."))
+  cmdFile <- file.path(downloadedArticlesFolderForCom, "start.cmd")
+  writeLines(cmdCodeAll, cmdFile)
+  print(paste0("Run ", cmdFile, " to start downloading."))
+  
+  
   print("wget.exe should be placed in working directory.")
   
 }
@@ -173,7 +290,7 @@ ReadFile <- function(filename) {
   #shareOK <- html_nodes(pg, xpath=".//div[@data-target='ok']")
   #shareTW <- html_nodes(pg, xpath=".//div[@data-target='tw']")
   #shareLJ <- html_nodes(pg, xpath=".//div[@data-target='LJ']")
-
+  
   articleBodyNode <- html_nodes(pg, xpath=".//div[@itemprop='articleBody']")
   
   plaintext <- html_nodes(articleBodyNode, xpath=".//p") %>% 
@@ -254,7 +371,7 @@ ReadFile <- function(filename) {
       unique() %>% 
       SetNAIfZeroLength()
   }
-
+  
   data.frame(url = url,
              filename = filename, 
              metaTitle= metaTitle,
@@ -280,7 +397,7 @@ ReadFile <- function(filename) {
 
 # Read and parse files in folder with provided number
 ReadFilesInFolder <- function(folderNumber) {
-
+  
   folders <- list.files(downloadedArticlesFolder, full.names = FALSE, 
                         recursive = FALSE, pattern = "-")
   folderName <- folders[folderNumber]
