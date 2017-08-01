@@ -35,7 +35,7 @@ TityData <- function() {
   # Remove duplicate rows, remove rows with url = NA, create urlKey column as a key
   dtD <- dfM %>% 
     select(-V1,-X)  %>% 
-    distinct(url, .keep_all=TRUE) %>% 
+    distinct(url, .keep_all = TRUE) %>% 
     na.omit(cols="url") %>%
     mutate(urlKey = gsub(":|\\.|/", "", url))
   
@@ -272,6 +272,15 @@ TityData <- function() {
   # SECTION 9
   print(paste0("9 ",Sys.time()))
   write.csv(dtD, file.path(tidyArticlesFolder, "tidy_articles_data.csv"), fileEncoding = "UTF-8")
+  
   # SECTION 10 Finish
   print(paste0("10 ",Sys.time()))
+  
+  # SECTION 11 Adding social
+  dfM <- read.csv(file.path(tidyArticlesFolder, "tidy_articles_data.csv"), stringsAsFactors = FALSE, encoding = "UTF-8")
+  dfS <- read.csv(file.path(parsedArticlesFolder, "social_articles.csv"), stringsAsFactors = FALSE, encoding = "UTF-8")
+  dt <- as.tbl(dfM)
+  dtS <- as.tbl(dfS) %>% rename(url = link) %>% select(url, FB, VK, OK, Com)
+  dtG <- left_join(dt, dtS, by = "url")
+  write.csv(dtG, file.path(tidyArticlesFolder, "tidy_articles_data.csv"), fileEncoding = "UTF-8")
 }
