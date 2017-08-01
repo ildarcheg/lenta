@@ -2,9 +2,13 @@
 require(lubridate)
 require(rvest)
 require(dplyr)
+require(tidyr)
 require(purrr)
 require(XML)
 require(data.table)
+require(stringr)
+require(jsonlite)
+require(reshape2)
 
 # Set workling directory and locale for macOS and Windows
 if (Sys.info()['sysname'] == "Windows") {
@@ -125,108 +129,6 @@ CreateWgetCMDFiles <- function() {
   cmdFile <- file.path(downloadedArticlesFolder, "start.cmd")
   writeLines(cmdCodeAll, cmdFile)
   print(paste0("Run ", cmdFile, " to start downloading."))
-  print("wget.exe should be placed in working directory.")
-  
-}
-
-## STEP 2. Prepare wget CMD files for parallel downloading social
-# Create CMD file.
-
-CreateWgetCMDFilesForSocial <- function() {
-  
-  articlesLinks <- readLines(file.path(tempDataFolder, "articles.urls"))
-  dir.create(warcFolder, showWarnings = FALSE)
-  dir.create(warcFolderForFB, showWarnings = FALSE)
-  dir.create(warcFolderForVK, showWarnings = FALSE)
-  dir.create(warcFolderForOK, showWarnings = FALSE)
-  dir.create(warcFolderForCom, showWarnings = FALSE)
-  
-  # split up articles links array by 10K links 
-  numberOfLinks <- length(articlesLinks)
-  digitNumber <- nchar(numberOfLinks)
-  groupSize <- 10000
-  filesGroup <- seq(from = 1, to = numberOfLinks, by = groupSize)
-  cmdCodeAll <- c()
-  
-  cmdCodeAllFB <- c()
-  cmdCodeAllVK <- c()
-  cmdCodeAllOK <- c()
-  cmdCodeAllCom <- c() 
-  
-  #articlesLinksEncoded <- sapply(articlesLinks, URLencode, reserved = TRUE)
-  
-  for (i in 1:length(filesGroup)) {
-    
-    # prepare folder name as 00001-10000, 10001-20000 etc
-    firstFileInGroup <- filesGroup[i]
-    lastFileInGroup <- min(firstFileInGroup + groupSize - 1, numberOfLinks)
-    leftPartFolderName <- formatC(firstFileInGroup, width = digitNumber, 
-                                  format = "d", flag = "0")
-    rigthPartFolderName <- formatC(lastFileInGroup, width = digitNumber, 
-                                   format = "d", flag = "0")
-    subFolderName <- paste0(leftPartFolderName, "-", rigthPartFolderName)
-    
-    subFolderPathFB <- file.path(downloadedArticlesFolderForFB, subFolderName)
-    dir.create(subFolderPathFB)
-    subFolderPathVK <- file.path(downloadedArticlesFolderForVK, subFolderName)
-    dir.create(subFolderPathVK)
-    subFolderPathOK <- file.path(downloadedArticlesFolderForOK, subFolderName)
-    dir.create(subFolderPathOK)
-    subFolderPathCom <- file.path(downloadedArticlesFolderForCom, subFolderName)
-    dir.create(subFolderPathCom)
-    
-    # write articles.urls for each 10K folders that contains 10K articles urls
-    
-    articlesLinksFB <- articlesLinks[firstFileInGroup:lastFileInGroup]
-    numberOfLinksFB <- length(articlesLinksFB)
-    digitNumberFB <- nchar(numberOfLinksFB)
-    groupSizeFB <- 50
-    filesGroupFB <- seq(from = 1, to = numberOfLinksFB, by = groupSizeFB)
-    articlesLinksFBEncoded <- c()
-    for (k in 1:length(filesGroupFB )) {
-      firstFileInGroupFB <- filesGroupFB[k]
-      lastFileInGroupFB <- min(firstFileInGroupFB + groupSizeFB - 1, numberOfLinksFB)	
-      articlesLinksFBGroup <- paste0(articlesLinksFB[firstFileInGroupFB:lastFileInGroupFB], collapse = ",")
-      articlesLinksFBGroup <- URLencode(articlesLinksFBGroup , reserved = TRUE)
-      articlesLinksFBGroup <- paste0("https://graph.facebook.com/?fields=engagement&access_token=144213186161556|oTvA5NHlj3DdBNmzjp8zwnf-JlA&ids=", articlesLinksFBGroup)
-      articlesLinksFBEncoded  <- c(articlesLinksFBEncoded, articlesLinksFBGroup)
-    }
-    articlesLinksVK <- paste0("https://vk.com/share.php?act=count&index=1&url=", 
-                              sapply(articlesLinks[firstFileInGroup:lastFileInGroup], URLencode, reserved = TRUE), "&format=json")
-    articlesLinksOK <- paste0("https://connect.ok.ru/dk?st.cmd=extLike&uid=okLenta&ref=", 
-                              sapply(articlesLinks[firstFileInGroup:lastFileInGroup], URLencode, reserved = TRUE), "")
-    articlesLinksCom <- paste0("https://c.rambler.ru/api/app/126/comments-count?xid=", 
-                               sapply(articlesLinks[firstFileInGroup:lastFileInGroup], URLencode, reserved = TRUE), "")
-    
-    writeLines(articlesLinksFBEncoded, file.path(subFolderPathFB, "articles.urls"))
-    writeLines(articlesLinksVK, file.path(subFolderPathVK, "articles.urls"))
-    writeLines(articlesLinksOK, file.path(subFolderPathOK, "articles.urls"))
-    writeLines(articlesLinksCom, file.path(subFolderPathCom, "articles.urls"))
-    
-    # add command line in CMD file as:
-    # START wget --warc-file=warc\000001-010000 -i 000001-010000\list.urls -P 000001-010000
-    # --output-document=700001-701269\ololo22 
-    cmdCode <-paste0("START ..\\..\\wget --warc-file=warc\\", subFolderName," -i ", 
-                     subFolderName, "\\", "articles.urls -P ", subFolderName, 
-                     " --output-document=", subFolderName, "\\", "index")
-    
-    cmdCodeAll <- c(cmdCodeAll, cmdCode)
-  }
-  
-  cmdFile <- file.path(downloadedArticlesFolderForFB, "start.cmd")
-  print(paste0("Run ", cmdFile, " to start downloading."))
-  writeLines(cmdCodeAll, cmdFile)
-  cmdFile <- file.path(downloadedArticlesFolderForVK, "start.cmd")
-  writeLines(cmdCodeAll, cmdFile)
-  print(paste0("Run ", cmdFile, " to start downloading."))
-  cmdFile <- file.path(downloadedArticlesFolderForOK, "start.cmd")
-  writeLines(cmdCodeAll, cmdFile)
-  print(paste0("Run ", cmdFile, " to start downloading."))
-  cmdFile <- file.path(downloadedArticlesFolderForCom, "start.cmd")
-  writeLines(cmdCodeAll, cmdFile)
-  print(paste0("Run ", cmdFile, " to start downloading."))
-  
-  
   print("wget.exe should be placed in working directory.")
   
 }
@@ -434,5 +336,234 @@ UnionData <- function() {
   }
   df <- bind_rows(dfList)
   write.csv(df, file.path(parsedArticlesFolder, "untidy_articles_data.csv"), 
+            fileEncoding = "UTF-8")
+}
+
+## STEP 5. Prepare wget CMD files for parallel downloading social
+# Create CMD file.
+
+CreateWgetCMDFilesForSocial <- function() {
+  
+  articlesLinks <- readLines(file.path(tempDataFolder, "articles.urls"))
+  dir.create(warcFolder, showWarnings = FALSE)
+  dir.create(warcFolderForFB, showWarnings = FALSE)
+  dir.create(warcFolderForVK, showWarnings = FALSE)
+  dir.create(warcFolderForOK, showWarnings = FALSE)
+  dir.create(warcFolderForCom, showWarnings = FALSE)
+  
+  # split up articles links array by 10K links 
+  numberOfLinks <- length(articlesLinks)
+  digitNumber <- nchar(numberOfLinks)
+  groupSize <- 10000
+  filesGroup <- seq(from = 1, to = numberOfLinks, by = groupSize)
+  cmdCodeAll <- c()
+  
+  cmdCodeAllFB <- c()
+  cmdCodeAllVK <- c()
+  cmdCodeAllOK <- c()
+  cmdCodeAllCom <- c() 
+  
+  for (i in 1:length(filesGroup)) {
+    
+    # prepare folder name as 00001-10000, 10001-20000 etc
+    firstFileInGroup <- filesGroup[i]
+    lastFileInGroup <- min(firstFileInGroup + groupSize - 1, numberOfLinks)
+    leftPartFolderName <- formatC(firstFileInGroup, width = digitNumber, 
+                                  format = "d", flag = "0")
+    rigthPartFolderName <- formatC(lastFileInGroup, width = digitNumber, 
+                                   format = "d", flag = "0")
+    subFolderName <- paste0(leftPartFolderName, "-", rigthPartFolderName)
+    
+    subFolderPathFB <- file.path(downloadedArticlesFolderForFB, subFolderName)
+    dir.create(subFolderPathFB)
+    subFolderPathVK <- file.path(downloadedArticlesFolderForVK, subFolderName)
+    dir.create(subFolderPathVK)
+    subFolderPathOK <- file.path(downloadedArticlesFolderForOK, subFolderName)
+    dir.create(subFolderPathOK)
+    subFolderPathCom <- file.path(downloadedArticlesFolderForCom, subFolderName)
+    dir.create(subFolderPathCom)
+    
+    # encode and write articles.urls for each 10K folders that contains 10K articles urls
+    # for FB we do it in a bit different way because FB allows us to pass 
+    # up to 50 links as a request parameter.
+    
+    articlesLinksFB <- articlesLinks[firstFileInGroup:lastFileInGroup]
+    numberOfLinksFB <- length(articlesLinksFB)
+    digitNumberFB <- nchar(numberOfLinksFB)
+    groupSizeFB <- 50
+    filesGroupFB <- seq(from = 1, to = numberOfLinksFB, by = groupSizeFB)
+    articlesLinksFBEncoded <- c()
+    for (k in 1:length(filesGroupFB )) {
+      firstFileInGroupFB <- filesGroupFB[k]
+      lastFileInGroupFB <- min(firstFileInGroupFB + groupSizeFB - 1, numberOfLinksFB)	
+      articlesLinksFBGroup <- paste0(articlesLinksFB[firstFileInGroupFB:lastFileInGroupFB], collapse = ",")
+      articlesLinksFBGroup <- URLencode(articlesLinksFBGroup , reserved = TRUE)
+      articlesLinksFBGroup <- paste0("https://graph.facebook.com/?fields=engagement&access_token=144213186161556|oTvA5NHlj3DdBNmzjp8zwnf-JlA&ids=", articlesLinksFBGroup)
+      articlesLinksFBEncoded  <- c(articlesLinksFBEncoded, articlesLinksFBGroup)
+    }
+    
+    articlesLinksVK <- paste0("https://vk.com/share.php?act=count&index=1&url=", 
+                              sapply(articlesLinks[firstFileInGroup:lastFileInGroup], URLencode, reserved = TRUE), "&format=json")
+    articlesLinksOK <- paste0("https://connect.ok.ru/dk?st.cmd=extLike&uid=okLenta&ref=", 
+                              sapply(articlesLinks[firstFileInGroup:lastFileInGroup], URLencode, reserved = TRUE), "")
+    articlesLinksCom <- paste0("https://c.rambler.ru/api/app/126/comments-count?xid=", 
+                               sapply(articlesLinks[firstFileInGroup:lastFileInGroup], URLencode, reserved = TRUE), "")
+    
+    writeLines(articlesLinksFBEncoded, file.path(subFolderPathFB, "articles.urls"))
+    writeLines(articlesLinksVK, file.path(subFolderPathVK, "articles.urls"))
+    writeLines(articlesLinksOK, file.path(subFolderPathOK, "articles.urls"))
+    writeLines(articlesLinksCom, file.path(subFolderPathCom, "articles.urls"))
+    
+    # add command line in CMD file as:
+    cmdCode <-paste0("START ..\\..\\wget --warc-file=warc\\", subFolderName," -i ", 
+                     subFolderName, "\\", "articles.urls -P ", subFolderName, 
+                     " --output-document=", subFolderName, "\\", "index")
+    
+    cmdCodeAll <- c(cmdCodeAll, cmdCode)
+  }
+  
+  cmdFile <- file.path(downloadedArticlesFolderForFB, "start.cmd")
+  print(paste0("Run ", cmdFile, " to start downloading."))
+  writeLines(cmdCodeAll, cmdFile)
+  cmdFile <- file.path(downloadedArticlesFolderForVK, "start.cmd")
+  writeLines(cmdCodeAll, cmdFile)
+  print(paste0("Run ", cmdFile, " to start downloading."))
+  cmdFile <- file.path(downloadedArticlesFolderForOK, "start.cmd")
+  writeLines(cmdCodeAll, cmdFile)
+  print(paste0("Run ", cmdFile, " to start downloading."))
+  cmdFile <- file.path(downloadedArticlesFolderForCom, "start.cmd")
+  writeLines(cmdCodeAll, cmdFile)
+  print(paste0("Run ", cmdFile, " to start downloading."))
+  
+  print("wget.exe should be placed in working directory.")
+  
+}
+
+## Parse downloaded articles social
+ReadSocial <- function() {
+  
+  # read and parse all warc files in FB folder
+  dfList <- list()
+  dfN <- 0  
+  warcs <- list.files(file.path(downloadedArticlesFolderForFB, "warc"), full.names = TRUE, 
+                      recursive = FALSE) 
+  for (i in 1:length(warcs)) {
+    
+    filename <- warcs[i]
+    print(filename)
+    res <- readLines(filename, warn = FALSE, encoding = "UTF-8")
+    anchorPositions <- which(res == "WARC-Type: response")
+    responsesJSON <- res[anchorPositions + 28]
+    
+    getID <- function(responses) { 
+      links <- sapply(responses, function(x){x$id}, USE.NAMES = FALSE) %>% unname() 
+      links}
+    getQuantity <- function(responses) { 
+      links <- sapply(responses, function(x){x$engagement$share_count}, USE.NAMES = FALSE) %>% unname() 
+      links}    
+    for(k in 1:length(responsesJSON)) {
+      if(responsesJSON[k]==""){ next }
+      responses <- fromJSON(responsesJSON[k])
+      if(!is.null(responses$error)) { next }
+      links <- sapply(responses, function(x){x$id}, USE.NAMES = FALSE) %>% unname() %>% unlist()
+      quantities <- sapply(responses, function(x){x$engagement$share_count}, USE.NAMES = FALSE) %>% unname() %>% unlist() 
+      df <- data.frame(link = links, quantity = quantities, social = "FB", stringsAsFactors = FALSE)  
+      dfN <- dfN + 1
+      dfList[[dfN]] <- df
+    }
+  }
+  dfFB <- bind_rows(dfList)
+  
+  # read and parse all warc files in VK folder
+  dfList <- list()
+  dfN <- 0  
+  warcs <- list.files(file.path(downloadedArticlesFolderForVK, "warc"), full.names = TRUE, 
+                      recursive = FALSE) 
+  for (i in 1:length(warcs)) {
+    
+    filename <- warcs[i]
+    print(filename)
+    res <- readLines(filename, warn = FALSE, encoding = "UTF-8")
+    anchorPositions <- which(res == "WARC-Type: response")
+    links <- res[anchorPositions + 4] %>% 
+      str_replace_all("WARC-Target-URI: https://vk.com/share.php\\?act=count&index=1&url=|&format=json", "") %>%
+      sapply(URLdecode) %>% unname()
+    quantities <- res[anchorPositions + 24] %>% 
+      str_replace_all(" |.*\\,|\\);", "") %>%
+      as.integer()
+    df <- data.frame(link = links, quantity = quantities, social = "VK", stringsAsFactors = FALSE)  
+    dfN <- dfN + 1
+    dfList[[dfN]] <- df
+  }
+  dfVK <- bind_rows(dfList)
+  
+  # read and parse all warc files in OK folder
+  dfList <- list()
+  dfN <- 0 
+  warcs <- list.files(file.path(downloadedArticlesFolderForOK, "warc"), full.names = TRUE, 
+                      recursive = FALSE) 
+  for (i in 1:length(warcs)) {
+    
+    filename <- warcs[i]
+    print(filename)
+    res <- readLines(filename, warn = FALSE, encoding = "UTF-8")
+    anchorPositions <- which(res == "WARC-Type: response")
+    links <- res[anchorPositions + 4] %>% 
+      str_replace_all("WARC-Target-URI: https://connect.ok.ru/dk\\?st.cmd=extLike&uid=okLenta&ref=", "") %>%
+      sapply(URLdecode) %>% unname()
+    quantities <- res[anchorPositions + 22] %>% 
+      str_replace_all(" |.*\\,|\\);|'", "") %>%
+      as.integer()
+    df <- data.frame(link = links, quantity = quantities, social = "OK", stringsAsFactors = FALSE)  
+    dfN <- dfN + 1
+    dfList[[dfN]] <- df
+  }
+  dfOK <- bind_rows(dfList)
+  
+  # read and parse all warc files in Com folder
+  dfList <- list()
+  dfN <- 0  
+  warcs <- list.files(file.path(downloadedArticlesFolderForCom, "warc"), full.names = TRUE, 
+                      recursive = FALSE) 
+  x <- c()
+  for (i in 1:length(warcs)) {
+    
+    filename <- warcs[i]
+    print(filename)
+    res <- readLines(filename, warn = FALSE, encoding = "UTF-8")
+    anchorPositions <- which(str_sub(res, start = 1, end = 9) == '{"xids":{')
+    x <- c(x, res[anchorPositions])
+  }  
+  for (i in 1:length(warcs)) {
+    
+    filename <- warcs[i]
+    print(filename)
+    res <- readLines(filename, warn = FALSE, encoding = "UTF-8")
+    anchorPositions <- which(str_sub(res, start = 1, end = 9) == '{"xids":{')
+    x <- c(x, res[anchorPositions])
+    responses <- res[anchorPositions] %>% 
+      str_replace_all('\\{\\"xids\\":\\{|\\}', "")
+    if(responses==""){ next }
+    links <- str_replace_all(responses, "(\":[^ ]+)|\"", "")
+    quantities <- str_replace_all(responses, ".*:", "") %>%
+      as.integer()
+    df <- data.frame(link = links, quantity = quantities, social = "Com", stringsAsFactors = FALSE)  
+    dfN <- dfN + 1
+    dfList[[dfN]] <- df
+  }
+  dfCom <- bind_rows(dfList)
+  dfCom <- dfCom[dfCom$link!="",]
+  
+  # combine dfs and reshape them into "link", "FB", "VK", "OK", "Com"
+  dfList <- list()
+  dfList[[1]] <- dfFB
+  dfList[[2]] <- dfVK
+  dfList[[3]] <- dfOK
+  dfList[[4]] <- dfCom
+  df <- bind_rows(dfList) 
+  dfCasted <- dcast(df, link ~ social, value.var = "quantity")
+  dfCasted <- dfCasted[order(dfCasted$link),]
+  
+  write.csv(dfCasted, file.path(parsedArticlesFolder, "social_articles.csv"), 
             fileEncoding = "UTF-8")
 }
