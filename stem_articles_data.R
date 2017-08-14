@@ -12,25 +12,24 @@ if (Sys.info()['sysname'] == "Windows") {
   Sys.setlocale("LC_ALL", "ru_RU.UTF-8")
 }
 setwd(workingDirectory)
+source("chunk.R")
 
 # Set common variables
 tidyArticlesFolder <- file.path(getwd(), "tidy_articles")
 stemedArticlesFolder <- file.path(getwd(), "stemed_articles")
 
-# Creare required folders if not exist 
+# Create required folders if not exist 
 dir.create(stemedArticlesFolder, showWarnings = FALSE)
 
 ## STEP 6. Stem title, description and plain text
 # Write columns on disk, run mystem, read stemed data and add to data.table
 StemArticlesData <- function() {
   
-  #dfM <- fread(file.path(tidyArticlesFolder, "tidy_articles_data.csv"), stringsAsFactors = FALSE, encoding = "UTF-8")
-  dfM <- read.csv(file.path(tidyArticlesFolder, "tidy_articles_data.csv"), stringsAsFactors = FALSE, encoding = "UTF-8")
-  dfM <- dfM[, -c("V1")]
+  dfM <- fread(file.path(tidyArticlesFolder, "tidy_articles_data.csv"), stringsAsFactors = FALSE, encoding = "UTF-8")
+  #dfM <- read.csv(file.path(tidyArticlesFolder, "tidy_articles_data.csv"), stringsAsFactors = FALSE, encoding = "UTF-8")
   dt <- dfM %>% as.tbl() %>% select(urlKey, stemTitle, stemMetaDescription, stemPlaintext)  
   
   print(paste0("1 ", Sys.time()))
-  dt <- dt[, ]
   columnToStem <- "stemTitle"
   sourceFile <- file.path(stemedArticlesFolder, "stem_titles.txt")
   stemedFile <- file.path(stemedArticlesFolder, "stemed_titles.txt")
@@ -58,26 +57,57 @@ StemArticlesData <- function() {
   system(paste0("mystem -nlc ", sourceFile, " ", stemedFile), intern = FALSE)
   
   print(paste0("4 ", Sys.time()))
-  
-  system.time(res<- readLines(file.path(stemedArticlesFolder, "stemed_titles.txt"), warn = FALSE, encoding = "UTF-8"))
-  res1 <- res
-  
-  res <- res1
-  system.time(res <- res %>% 
-                strsplit(split = "\\\\n") %>% unlist() %>% 
-                str_replace_all("(\\|[^ ]+)|(\\\\[^ ]+)|\\?|,|_", ""))
-  system.time(res <- res[res!=""])
-  system.time(sep <- which(grepl("httpslentaru|httplentaru", res)))
-  sep <- c(sep, length(res)+1)
-  
-  print(Sys.time())
-  df <- data.frame(urlKey = character(), type = character(), content = character(), stringsAsFactors = FALSE)
-  for(i in 1:(length(sep)-1)){
-    #print(sep[i])
-    #print(paste0(sep[i]+1, ":", sep[i+1]-1))
-    df[i, "urlKey"] <- sep[i]
-    df[i, "type"] <- "stemedTitles"
-    df[i, "content"] <- paste0(res[(sep[i]+1):(sep[i+1]-1)], collapse = " ")
+
+  CleanStemedText <- function(stemedText) {
+    chunkList <- chunk(stemedText, chunk.size = 10000000)
+    resLines <- c()
+    print(length(chunkList))
+    for (i in 1:length(chunkList)) {
+      resTemp <- chunkList[[i]] %>% 
+        strsplit(split = "\\\\n|===") %>% unlist() %>% 
+        str_replace_all("(\\|[^ ]+)|(\\\\[^ ]+)|\\?|,|_|===", "")
+      resLines <- c(resLines, resTemp[resTemp!=""])
+    }  
+    return(resLines)
   }
-  print(Sys.time())
+  
+  res <- readLines(file.path(stemedArticlesFolder, "stemed_titles.txt"), warn = FALSE, encoding = "UTF-8")
+  resLines <- CleanStemedText(res)
+  
+  print(paste0("5 ", Sys.time()))
+  
+  chunkedRes <- chunk(resLines, chunk.delimiter = "==http", fixed.delimiter = FALSE, keep.delimiter = TRUE)
+  stemedList <- lapply(chunkedRes, function(x) {data.frame(urlKey = x[1], content = paste0(x[2:length(x)], collapse = " "), stringsAsFactors = FALSE)})
+  
+  dtTitles <- bind_rows(stemedList)
+  dtTitles$type <- "stemedTitles"
+  
+  print(paste0("6 ", Sys.time()))
+  
+  res <- readLines(file.path(stemedArticlesFolder, "stemed_metadescriptions.txt"), warn = FALSE, encoding = "UTF-8")
+  resLines <- CleanStemedText(res)
+  
+  print(paste0("7 ", Sys.time()))
+  
+  chunkedRes <- chunk(resLines, chunk.delimiter = "==http", fixed.delimiter = FALSE, keep.delimiter = TRUE)
+  stemedList <- lapply(chunkedRes, function(x) {data.frame(urlKey = x[1], content = paste0(x[2:length(x)], collapse = " "), stringsAsFactors = FALSE)})
+  
+  dtMetadescriptions <- bind_rows(stemedList)
+  dtMetadescriptions$type <- "stemedMetadescriptions"
+  
+  print(paste0("8 ", Sys.time()))
+  
+  res <- readLines(file.path(stemedArticlesFolder, "stemed_plaintext.txt"), warn = FALSE, encoding = "UTF-8")
+  resLines <- CleanStemedText(res)
+  
+  print(paste0("9 ", Sys.time()))
+  
+  chunkedRes <- chunk(resLines, chunk.delimiter = "==http", fixed.delimiter = FALSE, keep.delimiter = TRUE)
+  stemedList <- lapply(chunkedRes, function(x) {data.frame(urlKey = x[1], content = paste0(x[2:length(x)], collapse = " "), stringsAsFactors = FALSE)})
+  
+  dtPlaintext <- bind_rows(stemedList)
+  dtPlaintext$type <- "stemedPlainText"
+  
+  print(paste0("10 ", Sys.time()))
+  
 }
