@@ -27,7 +27,10 @@ StemArticlesData <- function() {
   
   dfM <- fread(file.path(tidyArticlesFolder, "tidy_articles_data.csv"), stringsAsFactors = FALSE, encoding = "UTF-8")
   #dfM <- read.csv(file.path(tidyArticlesFolder, "tidy_articles_data.csv"), stringsAsFactors = FALSE, encoding = "UTF-8")
-  dt <- dfM %>% as.tbl() %>% select(urlKey, stemTitle, stemMetaDescription, stemPlaintext)  
+  dt <- dfM %>% as.tbl() %>% 
+    select(urlKey, stemTitle, stemMetaDescription, stemPlaintext) %>% 
+    mutate(urlKey = gsub("_|-", "", urlKey)) %>%
+    mutate(urlKey = paste0("=====", urlKey, "==="))
   
   print(paste0("1 ", Sys.time()))
   columnToStem <- "stemTitle"
