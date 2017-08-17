@@ -94,6 +94,7 @@ StemArticlesData <- function() {
                                       stringsAsFactors = FALSE)})
     print(paste0(i, " -6- ", sectionList[[i]]$stemedColumn, " ", Sys.time()))
     sectionList[[i]]$dt <- bind_rows(stemedList)
+    colnames(sectionList[[i]]$dt) <- c("key", sectionList[[i]]$stemedColumn)
   }
   
   dt <- dfM %>% as.tbl() %>% 
@@ -101,6 +102,7 @@ StemArticlesData <- function() {
   
   dt <- left_join(dt, sectionList[[1]]$dt, by = "key")
   dt <- left_join(dt, sectionList[[2]]$dt, by = "key")
-  dt <- left_join(dt, sectionList[[2]]$dt, by = "key")
-  
+  dt <- left_join(dt, sectionList[[3]]$dt, by = "key")
+  dt <- dt %>% select(-V1, -X, -urlKey, -metaDescription, -plaintext, -stemTitle, -stemMetaDescription, -stemPlaintext, - key)
+  write.csv(dtG, file.path(stemedArticlesFolder, "stemed_articles_data.csv"), fileEncoding = "UTF-8")
 }
