@@ -139,6 +139,7 @@ StemArticlesData <- function() {
   dfM <- ""
   
   ll(unit = "MB")
+  gc()
   
   timestamp(prefix = paste0("## END "))
 }
