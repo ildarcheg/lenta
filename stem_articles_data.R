@@ -66,7 +66,7 @@ StemArticlesData <- function() {
   
   rm(dt)
   
-  ll(unit = "MB")
+  print(ll(unit = "MB"))
   
   for (i in 1:length(sectionList)) {
     timestamp(prefix = paste0("## parsing file ", i, " -1- ", sectionList[[i]]$stemedColumn, " "))
@@ -114,7 +114,7 @@ StemArticlesData <- function() {
     
   }
   
-  ll(unit = "MB")
+  print(ll(unit = "MB"))
   
   timestamp(prefix = "## reading file ")
   dt <- fread(tidyDataFile, stringsAsFactors = FALSE, encoding = "UTF-8") %>% 
@@ -138,7 +138,14 @@ StemArticlesData <- function() {
   dt <- ""
   dfM <- ""
   
-  ll(unit = "MB")
+  file.remove(sectionList[[1]]$sourceFile)
+  file.remove(sectionList[[2]]$sourceFile)
+  file.remove(sectionList[[3]]$sourceFile)
+  file.remove(sectionList[[1]]$stemedFile)
+  file.remove(sectionList[[2]]$stemedFile)
+  file.remove(sectionList[[3]]$stemedFile)
+  
+  print(ll(unit = "MB"))
   gc()
   
   timestamp(prefix = paste0("## END "))
