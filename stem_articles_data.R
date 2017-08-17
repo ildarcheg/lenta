@@ -2,6 +2,7 @@ require(data.table)
 require(dplyr)
 require(tidyr)
 require(stringr)
+require(gdata)
 
 # Set workling directory and locale for macOS and Windows
 if (Sys.info()['sysname'] == "Windows") {
@@ -14,7 +15,6 @@ if (Sys.info()['sysname'] == "Windows") {
 setwd(workingDirectory)
 
 source("chunk.R")
-source("common_use.R")
 
 # Set common variables
 tidyArticlesFolder <- file.path(getwd(), "tidy_articles")
@@ -27,7 +27,7 @@ dir.create(stemedArticlesFolder, showWarnings = FALSE)
 # Write columns on disk, run mystem, read stemed data and add to data.table
 StemArticlesData <- function() {
   
-  TimeStamp(prefix = "## START reading file ")
+  timestamp(prefix = "## START reading file ")
   tidyDataFile <- file.path(tidyArticlesFolder, "tidy_articles_data.csv")
   dt <- fread(tidyDataFile, stringsAsFactors = FALSE, encoding = "UTF-8") %>% 
     as.tbl()
@@ -55,7 +55,7 @@ StemArticlesData <- function() {
                                                   "stemed_plaintext.txt"))
   
   for (i in 1:length(sectionList)) {
-    TimeStamp(prefix = paste0("## steming file ", i, " ", sectionList[[i]]$columnToStem, " "))
+    timestamp(prefix = paste0("## steming file ", i, " ", sectionList[[i]]$columnToStem, " "))
     write.table(dt[, c("sep","X", sectionList[[i]]$columnToStem)], 
                 sectionList[[i]]$sourceFile, 
                 fileEncoding = "UTF-8", sep = ",", quote = FALSE, 
@@ -66,19 +66,21 @@ StemArticlesData <- function() {
   
   rm(dt)
   
+  ll(unit = "MB")
+  
   for (i in 1:length(sectionList)) {
-    TimeStamp(prefix = paste0("## parsing file ", i, " -1- ", sectionList[[i]]$stemedColumn, " "))
+    timestamp(prefix = paste0("## parsing file ", i, " -1- ", sectionList[[i]]$stemedColumn, " "))
     stemedText <- readLines(sectionList[[i]]$stemedFile, 
                             warn = FALSE, 
                             encoding = "UTF-8")
-    TimeStamp(prefix = paste0("## parsing file ", i, " -2- ", sectionList[[i]]$stemedColumn, " "))
+    timestamp(prefix = paste0("## parsing file ", i, " -2- ", sectionList[[i]]$stemedColumn, " "))
     chunkList <- chunk(stemedText, chunk.size = 10000000)
     
     stemedText <- ""
     
     resLines <- c()
     for (j in 1:length(chunkList)) {
-      TimeStamp(prefix = paste0("## parsing file ", i, " -3- ", j, " ", sectionList[[i]]$stemedColumn, " "))
+      timestamp(prefix = paste0("## parsing file ", i, " -3- ", j, " ", sectionList[[i]]$stemedColumn, " "))
       resTemp <- chunkList[[j]] %>% 
         str_replace_all("===,", "===") %>%
         strsplit(split = "\\\\n|,") %>% unlist() %>% 
@@ -88,14 +90,14 @@ StemArticlesData <- function() {
     
     chunkList <- ""
     
-    TimeStamp(prefix = paste0("## parsing file ", i, " -4- ", sectionList[[i]]$stemedColumn, " "))
+    timestamp(prefix = paste0("## parsing file ", i, " -4- ", sectionList[[i]]$stemedColumn, " "))
     chunkedRes <- chunk(resLines, chunk.delimiter = "===", 
                         fixed.delimiter = FALSE, 
                         keep.delimiter = TRUE)
     
     resLines <- ""
     
-    TimeStamp(prefix = paste0("## parsing file ", i, " -5- ", sectionList[[i]]$stemedColumn, " "))
+    timestamp(prefix = paste0("## parsing file ", i, " -5- ", sectionList[[i]]$stemedColumn, " "))
     stemedList <- lapply(chunkedRes, 
                          function(x) {
                            data.frame(key = as.integer(str_replace_all(x[1], "===", "")), 
@@ -104,7 +106,7 @@ StemArticlesData <- function() {
     
     chunkedRes <- ""
     
-    TimeStamp(prefix = paste0("## parsing file ", i, " -6- ", sectionList[[i]]$stemedColumn, " "))
+    timestamp(prefix = paste0("## parsing file ", i, " -6- ", sectionList[[i]]$stemedColumn, " "))
     sectionList[[i]]$dt <- bind_rows(stemedList)
     colnames(sectionList[[i]]$dt) <- c("key", sectionList[[i]]$stemedColumn)
     
@@ -112,11 +114,13 @@ StemArticlesData <- function() {
     
   }
   
-  TimeStamp(prefix = "## reading file ")
+  ll(unit = "MB")
+  
+  timestamp(prefix = "## reading file ")
   dt <- fread(tidyDataFile, stringsAsFactors = FALSE, encoding = "UTF-8") %>% 
     as.tbl()
   
-  TimeStamp(prefix = paste0("## combining tables "))
+  timestamp(prefix = paste0("## combining tables "))
   dt <- dt %>% mutate(key = X)
   
   dt <- left_join(dt, sectionList[[1]]$dt, by = "key")
@@ -134,5 +138,7 @@ StemArticlesData <- function() {
   dt <- ""
   dfM <- ""
   
-  TimeStamp(prefix = paste0("## END "))
+  ll(unit = "MB")
+  
+  timestamp(prefix = paste0("## END "))
 }
