@@ -12,7 +12,9 @@ if (Sys.info()['sysname'] == "Windows") {
   Sys.setlocale("LC_ALL", "ru_RU.UTF-8")
 }
 setwd(workingDirectory)
+
 source("chunk.R")
+source("common_use.R")
 
 # Set common variables
 tidyArticlesFolder <- file.path(getwd(), "tidy_articles")
@@ -25,11 +27,11 @@ dir.create(stemedArticlesFolder, showWarnings = FALSE)
 # Write columns on disk, run mystem, read stemed data and add to data.table
 StemArticlesData <- function() {
   
-  print(paste0("Start ", Sys.time()))
-  dfM <- fread(file.path(tidyArticlesFolder, "tidy_articles_data.csv"), 
-               stringsAsFactors = FALSE, encoding = "UTF-8")
-  dt <- dfM %>% as.tbl() %>% 
-    mutate(sep = "===") %>%
+  TimeStamp(prefix = "## START reading file ")
+  tidyDataFile <- file.path(tidyArticlesFolder, "tidy_articles_data.csv")
+  dt <- fread(tidyDataFile, stringsAsFactors = FALSE, encoding = "UTF-8") %>% 
+    as.tbl()
+  dt <- dt %>% mutate(sep = "===") %>%
     select(sep, X, stemTitle, stemMetaDescription, stemPlaintext)
   
   sectionList <- list()
@@ -53,7 +55,7 @@ StemArticlesData <- function() {
                                                   "stemed_plaintext.txt"))
   
   for (i in 1:length(sectionList)) {
-    print(paste0(i, " ", sectionList[[i]]$columnToStem, " ", Sys.time()))
+    TimeStamp(prefix = paste0("## steming file ", i, " ", sectionList[[i]]$columnToStem, " "))
     write.table(dt[, c("sep","X", sectionList[[i]]$columnToStem)], 
                 sectionList[[i]]$sourceFile, 
                 fileEncoding = "UTF-8", sep = ",", quote = FALSE, 
@@ -62,19 +64,21 @@ StemArticlesData <- function() {
                   sectionList[[i]]$stemedFile), intern = FALSE)  
   }
   
+  rm(dt)
+  
   for (i in 1:length(sectionList)) {
-    print(paste0(i, " -1- ", sectionList[[i]]$stemedColumn, " ", Sys.time()))
-    
+    TimeStamp(prefix = paste0("## parsing file ", i, " -1- ", sectionList[[i]]$stemedColumn, " "))
     stemedText <- readLines(sectionList[[i]]$stemedFile, 
                             warn = FALSE, 
                             encoding = "UTF-8")
-    print(paste0(i, " -2- ", sectionList[[i]]$stemedColumn, " ", Sys.time()))
+    TimeStamp(prefix = paste0("## parsing file ", i, " -2- ", sectionList[[i]]$stemedColumn, " "))
     chunkList <- chunk(stemedText, chunk.size = 10000000)
     
-    print(paste0(i, " -3- ", sectionList[[i]]$stemedColumn, " ", Sys.time()))
+    stemedText <- ""
+    
     resLines <- c()
     for (j in 1:length(chunkList)) {
-      print(paste0(i, " -3- ", j, " ", sectionList[[i]]$stemedColumn, " ", Sys.time()))
+      TimeStamp(prefix = paste0("## parsing file ", i, " -3- ", j, " ", sectionList[[i]]$stemedColumn, " "))
       resTemp <- chunkList[[j]] %>% 
         str_replace_all("===,", "===") %>%
         strsplit(split = "\\\\n|,") %>% unlist() %>% 
@@ -82,27 +86,53 @@ StemArticlesData <- function() {
       resLines <- c(resLines, resTemp[resTemp!=""])
     }  
     
-    print(paste0(i, " -4- ", sectionList[[i]]$stemedColumn, " ", Sys.time()))
+    chunkList <- ""
+    
+    TimeStamp(prefix = paste0("## parsing file ", i, " -4- ", sectionList[[i]]$stemedColumn, " "))
     chunkedRes <- chunk(resLines, chunk.delimiter = "===", 
                         fixed.delimiter = FALSE, 
                         keep.delimiter = TRUE)
-    print(paste0(i, " -5- ", sectionList[[i]]$stemedColumn, " ", Sys.time()))
+    
+    resLines <- ""
+    
+    TimeStamp(prefix = paste0("## parsing file ", i, " -5- ", sectionList[[i]]$stemedColumn, " "))
     stemedList <- lapply(chunkedRes, 
                          function(x) {
                            data.frame(key = as.integer(str_replace_all(x[1], "===", "")), 
                                       content = paste0(x[2:length(x)], collapse = " "), 
                                       stringsAsFactors = FALSE)})
-    print(paste0(i, " -6- ", sectionList[[i]]$stemedColumn, " ", Sys.time()))
+    
+    chunkedRes <- ""
+    
+    TimeStamp(prefix = paste0("## parsing file ", i, " -6- ", sectionList[[i]]$stemedColumn, " "))
     sectionList[[i]]$dt <- bind_rows(stemedList)
     colnames(sectionList[[i]]$dt) <- c("key", sectionList[[i]]$stemedColumn)
+    
+    stemedList <- ""
+    
   }
   
-  dt <- dfM %>% as.tbl() %>% 
-    mutate(key = X)
+  TimeStamp(prefix = "## reading file ")
+  dt <- fread(tidyDataFile, stringsAsFactors = FALSE, encoding = "UTF-8") %>% 
+    as.tbl()
+  
+  TimeStamp(prefix = paste0("## combining tables "))
+  dt <- dt %>% mutate(key = X)
   
   dt <- left_join(dt, sectionList[[1]]$dt, by = "key")
   dt <- left_join(dt, sectionList[[2]]$dt, by = "key")
   dt <- left_join(dt, sectionList[[3]]$dt, by = "key")
+  
+  sectionList[[1]]$dt <- ""
+  sectionList[[2]]$dt <- ""
+  sectionList[[3]]$dt <- ""
+  
   dt <- dt %>% select(-V1, -X, -urlKey, -metaDescription, -plaintext, -stemTitle, -stemMetaDescription, -stemPlaintext, - key)
-  write.csv(dtG, file.path(stemedArticlesFolder, "stemed_articles_data.csv"), fileEncoding = "UTF-8")
+  
+  write.csv(dt, file.path(stemedArticlesFolder, "stemed_articles_data.csv"), fileEncoding = "UTF-8")
+  
+  dt <- ""
+  dfM <- ""
+  
+  TimeStamp(prefix = paste0("## END "))
 }
