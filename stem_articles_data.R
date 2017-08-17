@@ -14,6 +14,7 @@ if (Sys.info()['sysname'] == "Windows") {
 }
 setwd(workingDirectory)
 
+# Load library that helps to chunk vectors
 source("chunk.R")
 
 # Set common variables
@@ -27,6 +28,10 @@ dir.create(stemedArticlesFolder, showWarnings = FALSE)
 # Write columns on disk, run mystem, read stemed data and add to data.table
 StemArticlesData <- function() {
   
+  # Read tidy data and keep only column that have to be stemed.
+  # Add === separate rows in stem output.
+  # dt that takes about 5GB RAM for 700000 obs. of 25 variables
+  # and 2.2GB for 700000 obs. of 5 variables as tbl
   timestamp(prefix = "## START reading file ")
   tidyDataFile <- file.path(tidyArticlesFolder, "tidy_articles_data.csv")
   dt <- fread(tidyDataFile, stringsAsFactors = FALSE, encoding = "UTF-8") %>% 
@@ -34,6 +39,10 @@ StemArticlesData <- function() {
   dt <- dt %>% mutate(sep = "===") %>%
     select(sep, X, stemTitle, stemMetaDescription, stemPlaintext)
   
+  # Check memory usage 
+  print(ll(unit = "MB"))
+  
+  # Prepare the list that helps us to stem 3 column 
   sectionList <- list()
   sectionList[[1]] <- list(columnToStem = "stemTitle", 
                            stemedColumn = "stemedTitle",
@@ -54,8 +63,12 @@ StemArticlesData <- function() {
                            stemedFile = file.path(stemedArticlesFolder, 
                                                   "stemed_plaintext.txt"))
   
+  timestamp(prefix = "## steming file ")
+  # Write the table with sep, X, columnToStem columns and run mystem.
+  # It takes about 30 min to process Title, MetaDescription and Plaintext
+  # in 700K rows table.
+  # https://tech.yandex.ru/mystem/
   for (i in 1:length(sectionList)) {
-    timestamp(prefix = paste0("## steming file ", i, " ", sectionList[[i]]$columnToStem, " "))
     write.table(dt[, c("sep","X", sectionList[[i]]$columnToStem)], 
                 sectionList[[i]]$sourceFile, 
                 fileEncoding = "UTF-8", sep = ",", quote = FALSE, 
@@ -64,23 +77,26 @@ StemArticlesData <- function() {
                   sectionList[[i]]$stemedFile), intern = FALSE)  
   }
   
+  # Remove dt from memory and call garbage collection
   rm(dt)
+  gc()
   
+  # Check memory usage 
   print(ll(unit = "MB"))
   
+  timestamp(prefix = "## process file ")
+  # Process stemed files. it takes about 60 min to process 3 stemed files
   for (i in 1:length(sectionList)) {
-    timestamp(prefix = paste0("## parsing file ", i, " -1- ", sectionList[[i]]$stemedColumn, " "))
     stemedText <- readLines(sectionList[[i]]$stemedFile, 
                             warn = FALSE, 
                             encoding = "UTF-8")
-    timestamp(prefix = paste0("## parsing file ", i, " -2- ", sectionList[[i]]$stemedColumn, " "))
+    
+    # Split stemed text in chunks
     chunkList <- chunk(stemedText, chunk.size = 10000000)
     
-    stemedText <- ""
-    
+    # Clean chunks one by one and remove characters that were added by mystem
     resLines <- c()
     for (j in 1:length(chunkList)) {
-      timestamp(prefix = paste0("## parsing file ", i, " -3- ", j, " ", sectionList[[i]]$stemedColumn, " "))
       resTemp <- chunkList[[j]] %>% 
         str_replace_all("===,", "===") %>%
         strsplit(split = "\\\\n|,") %>% unlist() %>% 
@@ -88,38 +104,37 @@ StemArticlesData <- function() {
       resLines <- c(resLines, resTemp[resTemp!=""])
     }  
     
-    chunkList <- ""
-    
-    timestamp(prefix = paste0("## parsing file ", i, " -4- ", sectionList[[i]]$stemedColumn, " "))
+    # Split processed text in rows using === added at the beginnig  
     chunkedRes <- chunk(resLines, chunk.delimiter = "===", 
                         fixed.delimiter = FALSE, 
                         keep.delimiter = TRUE)
     
-    resLines <- ""
-    
-    timestamp(prefix = paste0("## parsing file ", i, " -5- ", sectionList[[i]]$stemedColumn, " "))
+    # Process each row and extract key (row number) and stemed content
     stemedList <- lapply(chunkedRes, 
                          function(x) {
                            data.frame(key = as.integer(str_replace_all(x[1], "===", "")), 
                                       content = paste0(x[2:length(x)], collapse = " "), 
                                       stringsAsFactors = FALSE)})
     
-    chunkedRes <- ""
-    
-    timestamp(prefix = paste0("## parsing file ", i, " -6- ", sectionList[[i]]$stemedColumn, " "))
+    # Combine all rows in data frame with key and content colums
     sectionList[[i]]$dt <- bind_rows(stemedList)
     colnames(sectionList[[i]]$dt) <- c("key", sectionList[[i]]$stemedColumn)
     
-    stemedList <- ""
-    
   }
   
+  # Remove variables used in loop and call garbage collection
+  rm(stemedText, chunkList, resLines, chunkedRes, stemedList)
+  gc()
+  
+  # Check memory usage 
   print(ll(unit = "MB"))
   
-  timestamp(prefix = "## reading file ")
+  # read tidy data again
+  timestamp(prefix = "## reading file (again)")
   dt <- fread(tidyDataFile, stringsAsFactors = FALSE, encoding = "UTF-8") %>% 
     as.tbl()
   
+  # add key column as a key and add tables with stemed data to tidy data 
   timestamp(prefix = paste0("## combining tables "))
   dt <- dt %>% mutate(key = X)
   
@@ -135,9 +150,6 @@ StemArticlesData <- function() {
   
   write.csv(dt, file.path(stemedArticlesFolder, "stemed_articles_data.csv"), fileEncoding = "UTF-8")
   
-  dt <- ""
-  dfM <- ""
-  
   file.remove(sectionList[[1]]$sourceFile)
   file.remove(sectionList[[2]]$sourceFile)
   file.remove(sectionList[[3]]$sourceFile)
@@ -145,8 +157,12 @@ StemArticlesData <- function() {
   file.remove(sectionList[[2]]$stemedFile)
   file.remove(sectionList[[3]]$stemedFile)
   
-  print(ll(unit = "MB"))
+  # Remove dt, sectionList and call garbage collection
+  rm(dt)
   gc()
   
-  timestamp(prefix = paste0("## END "))
+  # Check memory usage
+  print(ll(unit = "MB"))
+  
+  timestamp(prefix = "## END ")
 }
