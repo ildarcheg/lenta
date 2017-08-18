@@ -63,8 +63,8 @@ GetNewsListForPeriod <- function() {
   timestamp()
 }
 ```
-Сгенерировав массив дат с `2010-01-01` по `2017-06-30` и преобразовав `archivePagesLinks`, я получил ссылки на все так называемые "архивные страницы":
 
+Сгенерировав массив дат с `2010-01-01` по `2017-06-30` и преобразовав `archivePagesLinks`, я получил ссылки на все так называемые "архивные страницы":
 ```
 > head(archivePagesLinks)
 [1] "https://lenta.ru/2010/01/01/"
@@ -76,6 +76,7 @@ GetNewsListForPeriod <- function() {
 > length(archivePagesLinks)
 [1] 2738
 ```
+
 При помощи метода `read_html` я в цикле "скачал" содержимое страниц в буфер, а при помощи методов `html_nodes` и `html_attr` получил непосредственно ссылки на статьи, коих вышло почти `400К`:
 ```
 > head(articlesLinks)
@@ -105,6 +106,7 @@ GetNewsListForPeriod <- function() {
 ```
   wget --warc-file=lenta -i lenta.urls
 ```
+
 Непосредственно код выполнения выглядел так:
 ```R
   system("wget --warc-file=lenta -i lenta.urls", intern = FALSE)
@@ -115,7 +117,6 @@ GetNewsListForPeriod <- function() {
 Первые замеры производительности показали, что для закачки `2000` ссылок было потрачено `10 минут`, методом экстраполяции (давно хотел использовать это слово) получал `1890 минут` для всех статей - "олмост три таймс фастер бат нот энаф" - почти в три раза быстрее, но все равно недостаточно. Вернувшись на пару шагов назад и протестив новый механизм с учетом `parallel-package {parallel}`, понял, что и здесь профита не светит.
 
 Оставался ход конем. Запуск нескольких по-настоящему параллельных процессов. С учетом того, что от "reproducible research" (принцип, о котором говорили на курсах) шаг в сторону я уже сделал (использовав внешнюю программу wget и фактически привязав выполнение к среде Windows), я решил сделать еще один шаг и снова вернуться к идее запуска параллельных процессов, однако уже вне R. Как заставить CMD файл выполнять несколько последовательных команд, не дожидаясь выполнения предыдущей (читай параллельно), рассказал все тот же [stackoverflow](https://stackoverflow.com). Оказалось, что замечательная команда `START` позволяет запустить команду на выполнение в отдельном окне. Вооружившись этим знанием, разродился следующим кодом:
-
 ```R
 ## STEP 2. Prepare wget CMD files for parallel downloading
 # Create CMD file.
@@ -169,6 +170,7 @@ CreateWgetCMDFiles <- function() {
   timestamp()
 }
 ```
+
 Этот код разбивает массив ссылок на блоки по 10000 штук (в моем случае получилось 38 блоков). Для каждого блока в цикле создается папка вида  `00001-10000`, `10001-20000` и т.д, в которую складывается свой собственный файл "articles.urls" (со своим 10-тысячным набором ссылок) и туда же попадут скачанные файлы. В этом же цикле собирается CMD файл, который должен одновременно запустить 38 окон:
 ```
 START ..\wget --warc-file=warc\000001-010000 -i 000001-010000\articles.urls -P 000001-010000
@@ -179,6 +181,7 @@ START ..\wget --warc-file=warc\350001-360000 -i 350001-360000\articles.urls -P 3
 START ..\wget --warc-file=warc\360001-370000 -i 360001-370000\articles.urls -P 360001-370000
 START ..\wget --warc-file=warc\370001-379862 -i 370001-379862\articles.urls -P 370001-379862
 ```
+
 Запуск запуск сформированного CMD файла запускает ожидаемые 38 окон с командой `wget` и дает следующую загрузку компьютера со следующими характеристиками `3.5GHz Xeon E-1240 v5, 32Gb, SSD, Windows Server 2012`
 
 ![Загрузка компьютера в момент одновременной закачки страниц](images/download_performance.jpg)
@@ -198,6 +201,7 @@ START ..\wget --warc-file=warc\370001-379862 -i 370001-379862\articles.urls -P 3
 > sum(file.size(warcFiles))/1024/1024
 [1] 18770.4
 ```
+
 Что означает `379703` скачанных веб-страниц общим размером `66713.61MB` и `38` сжатых `WARC`-файлы общим размером `18770.40MB`. Нехитрое вычисление показало, что я "потерял" `159` страниц. Возможно их судьбу можно узнать распарсив `WARC`-файлы по примеру от [Bob Rudis](https://rud.is/), но я решил списать их на погрешность и пойти своим путем, распарсивая непосредственно `379703` файлов.
 
 ### Parsing
@@ -343,6 +347,7 @@ ReadFile <- function(filename) {
   
 }
 ```
+
 Для начала заголовок. Изначально я получал из `title` что-то вида `Швеция признана лучшей страной мира для иммигрантов: Общество: Мир: Lenta.ru`, в надежде разбить заголовок на непосредственный заголове и на рубрику с подрубрикой. Однако потом решил под подстраховки подтянуть заголовок в чистом виде из метаданных страницы.
 
 Дату и время я получаю из `<time class="g-date" datetime="2017-07-10T12:35:00Z" itemprop="datePublished" pubdate=""> 15:35, 10 июля 2017</time>`, причем для подстраховки решил получить не только `2017-07-10T12:35:00Z`, но и текстовое представление `15:35, 10 июля 2017` и как оказалось не зря. Это текстовое представление позволило получать время статьи для случаев, когда `time[@class='g-date']` по какой-то причине на странице отсутствовал.
@@ -358,7 +363,6 @@ ReadFile <- function(filename) {
 Вот в принципе и вся информация, которую я посчитал полезной.
 
 Следущий код позволил мне запустить парсинг фалов, находящейся в первой папке (из 38):
-
 ```R
 folderNumber <- 1
 # Read and parse files in folder with provided number
@@ -391,6 +395,7 @@ ReadFilesInFolder <- function(folderNumber) {
             fileEncoding = "UTF-8")
 }
 ```
+
 Получив адрес папки вида `00001-10000` и ее содержимое, я разбивал массив файлов на блоки по `1000` и в цикле при помощи `map_df` запускал свою функцию `ReadFile` для каждого такого блока.
 
 Замеры показали, что для обработки `10000` статей, требуется примерно `8 минут` (причем `95%` времени занимал метод `read_html`). Все той же экстраполяцией получил `300 минут` или `5 часов`.
@@ -507,7 +512,275 @@ UnionData <- function() {
  $ videoCredits    : chr  NA ...
 ```
 
-Парсинг завершен. Осталось привести эту дату к состоянию, пригодному для анализа.
+Парсинг завершен. Осталось привести эту дату к состоянию, пригодному для анализа. Но перед этим добавим обещанный кусок про камменты и репосты.
+
+### SOCIAL MEDIA
+
+На самом деле, этот шаг был выполнен практически в конце первой части моего исследования (когда я практически получил пригодную для анализа дату). Если вы помните, веб-страница скачивалась без данных о комментариях и реакций соцсетей, так как эта информация заполнялась скриптами динамически. После подсказки, я решил проверить что показывает инспектор в Google Chrome в момент загрузки страницы и в разделе Network нашел следующее:
+```
+https://graph.facebook.com/?id=https%3A%2F%2Flenta.ru%2Fnews%2F2017%2F08%2F10%2Fudostov%2F
+```
+
+И в качестве ответа там было:
+```
+{
+   "share": {
+      "comment_count": 0,
+      "share_count": 243
+   },
+   "og_object": {
+      "id": "1959067174107041",
+      "description": ...,
+      "title": ...,
+      "type": "article",
+      "updated_time": "2017-08-10T09:21:29+0000"
+   },
+   "id": "https://lenta.ru/news/2017/08/10/udostov/"
+}
+```
+
+Схожие запросы были обнаружены и для Вконтакта, Одноклассников и Рамблера, где хранились данные о количестве комментариев к каждой статье (сами комментарии мне получить так и не удалось). Как оказалось, достаточно было выполнить подобные запросы для каждой из статей. Так как количество запросов вида `Количество статей Х 4`, то решил сразу воспользовать проверенным проверенным методом "параллелизации". 
+
+Код, который подготавливает 4 CMD файла, которые которые запускают параллельное выполение запосов к социальным сетям:
+```R
+## STEP 5. Prepare wget CMD files for parallel downloading social
+# Create CMD file.
+CreateWgetCMDFilesForSocial <- function() {
+  timestamp()
+  articlesLinks <- readLines(file.path(tempDataFolder, "articles.urls"))
+  dir.create(warcFolder, showWarnings = FALSE)
+  dir.create(warcFolderForFB, showWarnings = FALSE)
+  dir.create(warcFolderForVK, showWarnings = FALSE)
+  dir.create(warcFolderForOK, showWarnings = FALSE)
+  dir.create(warcFolderForCom, showWarnings = FALSE)
+  
+  # split up articles links array by 10K links 
+  numberOfLinks <- length(articlesLinks)
+  digitNumber <- nchar(numberOfLinks)
+  groupSize <- 10000
+  filesGroup <- seq(from = 1, to = numberOfLinks, by = groupSize)
+  cmdCodeAll <- c()
+  
+  cmdCodeAllFB <- c()
+  cmdCodeAllVK <- c()
+  cmdCodeAllOK <- c()
+  cmdCodeAllCom <- c() 
+  
+  for (i in 1:length(filesGroup)) {
+    
+    # Prepare folder name as 00001-10000, 10001-20000 etc
+    firstFileInGroup <- filesGroup[i]
+    lastFileInGroup <- min(firstFileInGroup + groupSize - 1, numberOfLinks)
+    leftPartFolderName <- formatC(firstFileInGroup, width = digitNumber, 
+                                  format = "d", flag = "0")
+    rigthPartFolderName <- formatC(lastFileInGroup, width = digitNumber, 
+                                   format = "d", flag = "0")
+    subFolderName <- paste0(leftPartFolderName, "-", rigthPartFolderName)
+    
+    subFolderPathFB <- file.path(downloadedArticlesFolderForFB, subFolderName)
+    dir.create(subFolderPathFB)
+    subFolderPathVK <- file.path(downloadedArticlesFolderForVK, subFolderName)
+    dir.create(subFolderPathVK)
+    subFolderPathOK <- file.path(downloadedArticlesFolderForOK, subFolderName)
+    dir.create(subFolderPathOK)
+    subFolderPathCom <- file.path(downloadedArticlesFolderForCom, subFolderName)
+    dir.create(subFolderPathCom)
+    
+    # Encode and write down articles.urls for each 10K folders that contains 
+    # 10K articles urls.
+    # For FB it has to be done in a bit different way because FB allows to pass 
+    # up to 50 links as a request parameter.
+    
+    articlesLinksFB <- articlesLinks[firstFileInGroup:lastFileInGroup]
+    numberOfLinksFB <- length(articlesLinksFB)
+    digitNumberFB <- nchar(numberOfLinksFB)
+    groupSizeFB <- 50
+    filesGroupFB <- seq(from = 1, to = numberOfLinksFB, by = groupSizeFB)
+    articlesLinksFBEncoded <- c()
+    for (k in 1:length(filesGroupFB )) {
+      firstFileInGroupFB <- filesGroupFB[k]
+      lastFileInGroupFB <- min(firstFileInGroupFB + groupSizeFB - 1, numberOfLinksFB)	
+      articlesLinksFBGroup <- paste0(articlesLinksFB[firstFileInGroupFB:lastFileInGroupFB], collapse = ",")
+      articlesLinksFBGroup <- URLencode(articlesLinksFBGroup , reserved = TRUE)
+      articlesLinksFBGroup <- paste0("https://graph.facebook.com/?fields=engagement&access_token=PlaceYourTokenHere&ids=", articlesLinksFBGroup)
+      articlesLinksFBEncoded  <- c(articlesLinksFBEncoded, articlesLinksFBGroup)
+    }
+    
+    articlesLinksVK <- paste0("https://vk.com/share.php?act=count&index=1&url=", 
+                              sapply(articlesLinks[firstFileInGroup:lastFileInGroup], URLencode, reserved = TRUE), "&format=json")
+    articlesLinksOK <- paste0("https://connect.ok.ru/dk?st.cmd=extLike&uid=okLenta&ref=", 
+                              sapply(articlesLinks[firstFileInGroup:lastFileInGroup], URLencode, reserved = TRUE), "")
+    articlesLinksCom <- paste0("https://c.rambler.ru/api/app/126/comments-count?xid=", 
+                               sapply(articlesLinks[firstFileInGroup:lastFileInGroup], URLencode, reserved = TRUE), "")
+    
+    writeLines(articlesLinksFBEncoded, file.path(subFolderPathFB, "articles.urls"))
+    writeLines(articlesLinksVK, file.path(subFolderPathVK, "articles.urls"))
+    writeLines(articlesLinksOK, file.path(subFolderPathOK, "articles.urls"))
+    writeLines(articlesLinksCom, file.path(subFolderPathCom, "articles.urls"))
+    
+    # Add command line in CMD file
+    cmdCode <-paste0("START ..\\..\\wget --warc-file=warc\\", subFolderName," -i ", 
+                     subFolderName, "\\", "articles.urls -P ", subFolderName, 
+                     " --output-document=", subFolderName, "\\", "index")
+    
+    cmdCodeAll <- c(cmdCodeAll, cmdCode)
+  }
+  
+  cmdFile <- file.path(downloadedArticlesFolderForFB, "start.cmd")
+  print(paste0("Run ", cmdFile, " to start downloading."))
+  writeLines(cmdCodeAll, cmdFile)
+  cmdFile <- file.path(downloadedArticlesFolderForVK, "start.cmd")
+  writeLines(cmdCodeAll, cmdFile)
+  print(paste0("Run ", cmdFile, " to start downloading."))
+  cmdFile <- file.path(downloadedArticlesFolderForOK, "start.cmd")
+  writeLines(cmdCodeAll, cmdFile)
+  print(paste0("Run ", cmdFile, " to start downloading."))
+  cmdFile <- file.path(downloadedArticlesFolderForCom, "start.cmd")
+  writeLines(cmdCodeAll, cmdFile)
+  print(paste0("Run ", cmdFile, " to start downloading."))
+  
+  print("wget.exe should be placed in working directory.")
+  timestamp()
+}
+```
+
+Как и в предыдущих примерах, массив ссылок разбивается на куски по 10К, преобразуются в строку запроса (к каждой соцсети отдельно), складывается в соответствующие папки. После запуска командного файла и выполнения всех запросов, в соответствующих папках окажутся WARC файлы, содержащие ответы сервисов. Отдельно пришлось повозиться с фейсбуком, так как он не обрабатывал больше 100 запросов за раз. Чтобы увеличить лимит, пришлось зарегистрироваться как ФБ разработчик, зарегистирорвать собственное приложение, получить токен и слать запросы уже с его указанием. А так как ФБ мог обрабатывать до 50 значений параметра в одном запросе, то для строки запроса для него готовились чуть по другому.
+
+Парсинг ответов был уже делом техники:
+```R
+## Parse downloaded articles social
+ReadSocial <- function() {
+  timestamp()
+  # Read and parse all warc files in FB folder
+  dfList <- list()
+  dfN <- 0  
+  warcs <- list.files(file.path(downloadedArticlesFolderForFB, "warc"), full.names = TRUE, 
+                      recursive = FALSE) 
+  for (i in 1:length(warcs)) {
+    
+    filename <- warcs[i]
+    print(filename)
+    res <- readLines(filename, warn = FALSE, encoding = "UTF-8")
+    anchorPositions <- which(res == "WARC-Type: response")
+    responsesJSON <- res[anchorPositions + 28]
+    
+    getID <- function(responses) { 
+      links <- sapply(responses, function(x){x$id}, USE.NAMES = FALSE) %>% unname() 
+      links}
+    getQuantity <- function(responses) { 
+      links <- sapply(responses, function(x){x$engagement$share_count}, USE.NAMES = FALSE) %>% unname() 
+      links}    
+    for(k in 1:length(responsesJSON)) {
+      if(responsesJSON[k]==""){ next }
+      responses <- fromJSON(responsesJSON[k])
+      if(!is.null(responses$error)) { next }
+      links <- sapply(responses, function(x){x$id}, USE.NAMES = FALSE) %>% unname() %>% unlist()
+      quantities <- sapply(responses, function(x){x$engagement$share_count}, USE.NAMES = FALSE) %>% unname() %>% unlist() 
+      df <- data.frame(link = links, quantity = quantities, social = "FB", stringsAsFactors = FALSE)  
+      dfN <- dfN + 1
+      dfList[[dfN]] <- df
+    }
+  }
+  dfFB <- bind_rows(dfList)
+  
+  # Read and parse all warc files in VK folder
+  dfList <- list()
+  dfN <- 0  
+  warcs <- list.files(file.path(downloadedArticlesFolderForVK, "warc"), full.names = TRUE, 
+                      recursive = FALSE) 
+  for (i in 1:length(warcs)) {
+    
+    filename <- warcs[i]
+    print(filename)
+    res <- readLines(filename, warn = FALSE, encoding = "UTF-8")
+    anchorPositions <- which(res == "WARC-Type: response")
+    links <- res[anchorPositions + 4] %>% 
+      str_replace_all("WARC-Target-URI: https://vk.com/share.php\\?act=count&index=1&url=|&format=json", "") %>%
+      sapply(URLdecode) %>% unname()
+    quantities <- res[anchorPositions + 24] %>% 
+      str_replace_all(" |.*\\,|\\);", "") %>%
+      as.integer()
+    df <- data.frame(link = links, quantity = quantities, social = "VK", stringsAsFactors = FALSE)  
+    dfN <- dfN + 1
+    dfList[[dfN]] <- df
+  }
+  dfVK <- bind_rows(dfList)
+  
+  # Read and parse all warc files in OK folder
+  dfList <- list()
+  dfN <- 0 
+  warcs <- list.files(file.path(downloadedArticlesFolderForOK, "warc"), full.names = TRUE, 
+                      recursive = FALSE) 
+  for (i in 1:length(warcs)) {
+    
+    filename <- warcs[i]
+    print(filename)
+    res <- readLines(filename, warn = FALSE, encoding = "UTF-8")
+    anchorPositions <- which(res == "WARC-Type: response")
+    links <- res[anchorPositions + 4] %>% 
+      str_replace_all("WARC-Target-URI: https://connect.ok.ru/dk\\?st.cmd=extLike&uid=okLenta&ref=", "") %>%
+      sapply(URLdecode) %>% unname()
+    quantities <- res[anchorPositions + 22] %>% 
+      str_replace_all(" |.*\\,|\\);|'", "") %>%
+      as.integer()
+    df <- data.frame(link = links, quantity = quantities, social = "OK", stringsAsFactors = FALSE)  
+    dfN <- dfN + 1
+    dfList[[dfN]] <- df
+  }
+  dfOK <- bind_rows(dfList)
+  
+  # Read and parse all warc files in Com folder
+  dfList <- list()
+  dfN <- 0  
+  warcs <- list.files(file.path(downloadedArticlesFolderForCom, "warc"), full.names = TRUE, 
+                      recursive = FALSE) 
+  x <- c()
+  for (i in 1:length(warcs)) {
+    
+    filename <- warcs[i]
+    print(filename)
+    res <- readLines(filename, warn = FALSE, encoding = "UTF-8")
+    anchorPositions <- which(str_sub(res, start = 1, end = 9) == '{"xids":{')
+    x <- c(x, res[anchorPositions])
+  }  
+  for (i in 1:length(warcs)) {
+    
+    filename <- warcs[i]
+    print(filename)
+    res <- readLines(filename, warn = FALSE, encoding = "UTF-8")
+    anchorPositions <- which(str_sub(res, start = 1, end = 9) == '{"xids":{')
+    x <- c(x, res[anchorPositions])
+    responses <- res[anchorPositions] %>% 
+      str_replace_all('\\{\\"xids\\":\\{|\\}', "")
+    if(responses==""){ next }
+    links <- str_replace_all(responses, "(\":[^ ]+)|\"", "")
+    quantities <- str_replace_all(responses, ".*:", "") %>%
+      as.integer()
+    df <- data.frame(link = links, quantity = quantities, social = "Com", stringsAsFactors = FALSE)  
+    dfN <- dfN + 1
+    dfList[[dfN]] <- df
+  }
+  dfCom <- bind_rows(dfList)
+  dfCom <- dfCom[dfCom$link!="",]
+  
+  # Combine dfs and reshape them into "link", "FB", "VK", "OK", "Com"
+  dfList <- list()
+  dfList[[1]] <- dfFB
+  dfList[[2]] <- dfVK
+  dfList[[3]] <- dfOK
+  dfList[[4]] <- dfCom
+  df <- bind_rows(dfList) 
+  dfCasted <- dcast(df, link ~ social, value.var = "quantity")
+  dfCasted <- dfCasted[order(dfCasted$link),]
+  
+  write.csv(dfCasted, file.path(parsedArticlesFolder, "social_articles.csv"), 
+            fileEncoding = "UTF-8")
+  timestamp()
+}
+```
+
+На этом сбор данных окончен. Приступаем к обработке.
+
 
 ### Cleaning
 
@@ -521,7 +794,8 @@ Read 379746 rows and 21 (of 21) columns from 1.698 GB file in 00:00:18
 пользователь      система       прошло 
        17.67         0.54        18.22 
 ```
-Ну а дальше предстояло проверить каждую колонку таблицы, есть ли в ней что-нибудь вменяемое или там только `NA`. И если что-то есть - привести это что-то к читаемому виду (а этом этапе мне пришлось несколько раз подпиливать Parsing). В итоге код, который приводил дату в вид, готовый для анализа стал таким:
+
+Ну а дальше предстояло проверить каждую колонку таблицы, есть ли в ней что-нибудь вменяемое или там только `NA`. И если что-то есть - привести это что-то к читаемому виду (на этом этапе мне пришлось несколько раз подпиливать Parsing). В итоге код, который приводил дату в вид, готовый для анализа стал таким:
 ```R
 # Load required packages
 require(lubridate)
@@ -880,13 +1154,10 @@ Classes ‘data.table’ and 'data.frame':  376913 obs. of  19 variables:
 [1] 2741.01
 ```
 
-### STEMMING 
-
-Даже для простого анализа, как часто употребляется то или иное слово, нужно "Путина", "Путину", "Путиным" привести к единому "Путин". Для этого гугл мне нашел [MyStem](https://tech.yandex.ru/mystem/) - консольную программу от яндекса, которая как раз подобным и занимается (лемматизацией).
-
-
 ### REPRODUCIBLE RESEARCH
-В какой-то момент (ближе к концу шага STEMMING) решил проверить насколько мой ресерч является репродюсибл. Для этого в качестве начально даты было указано `1 сентября 1999 года`.
+Однако финальный шаг (а именно STEMMING) придется немного отложить, так как необходимо внести кое-какие поправки в исследование. В какой-то момент (ближе к концу шага STEMMING) решил проверить насколько мой ресерч является репродюсибл. Для этого в качестве начально даты указал `1 сентября 1999 года` и повторил все шаги но уже с почти вдвое большей выборкой.
+
+> Начиная с этого момента все манипуляции будут с данным 700К статей.
 
 Парсинг архивных страниц занял `2 часа` и его итогом стал список из `700К ссылок`:
 ```R
@@ -901,11 +1172,11 @@ Classes ‘data.table’ and 'data.frame':  376913 obs. of  19 variables:
 [1] 702246
 ```
 
-Граббинг 700000 статей (за неполные 18 лет) в виде 70 одновременных процессов закончился за `4 часа`. Результат:
+Граббинг 700000 статей (за неполные 18 лет) в виде 70 одновременных процессов закончился за `4.5 часа`. Результат:
 ```
 > indexFiles <- list.files(downloadedArticlesFolder, full.names = TRUE, recursive = TRUE, pattern = "index")
 > length(indexFiles)
-[1] 701109
+[1] 702246
 > sum(file.size(indexFiles))/1024/1024
 [1] 123682.1
 ```
@@ -913,7 +1184,7 @@ Classes ‘data.table’ and 'data.frame':  376913 obs. of  19 variables:
 Парсинг `123GB` скачанных веб-страниц в виде тех же 70 процессов занимял `60 мин` (при полной загрузке сервера). Результат `2.831MB` неочищеной и неприведенной даты:
 ```
 > file.size(file.path(parsedArticlesFolder, "untidy_articles_data.csv"))/1024/1024
-[1] 2831.012
+[1] 3001.875
 ```
 
 Приведение даты заняло больше 8 часов (проблемное место все тоже, секция 7). Время выполнения на сервере `3.5GHz Xeon E-1240 v5, 32Gb, SSD, Windows Server 2012`:
@@ -937,4 +1208,185 @@ Classes ‘data.table’ and 'data.frame':  376913 obs. of  19 variables:
 [1] 4534.328
 ```
 
+### STEMMING
 
+Финальный блок. Осталось привести заголовок, описание и текст статей к нормальному виду, когда `Путин/Путина/Путину/Путиным` (мир ему и благословение) будет приведено к единообразному `Путин` (мир ему и благословение). В этом мне помогла статья [Стемминг текстов на естественном языке](http://r.psylab.info/blog/2015/05/26/text-stemming/) и программа [MyStem](https://tech.yandex.ru/mystem/). Код приведен ниже:
+```R
+# Load required packages
+require(data.table)
+require(dplyr)
+require(tidyr)
+require(stringr)
+require(gdata)
+
+# Set workling directory and locale for macOS and Windows
+if (Sys.info()['sysname'] == "Windows") {
+  workingDirectory <- paste0(Sys.getenv("HOMEPATH"), "\\lenta") 
+  Sys.setlocale("LC_ALL", "Russian")
+} else {
+  workingDirectory <- ("~/lenta")
+  Sys.setlocale("LC_ALL", "ru_RU.UTF-8")
+}
+setwd(workingDirectory)
+
+# Load library that helps to chunk vectors
+source("chunk.R")
+
+# Set common variables
+tidyArticlesFolder <- file.path(getwd(), "tidy_articles")
+stemedArticlesFolder <- file.path(getwd(), "stemed_articles")
+
+# Create required folders if not exist 
+dir.create(stemedArticlesFolder, showWarnings = FALSE)
+
+## STEP 6. Stem title, description and plain text
+# Write columns on disk, run mystem, read stemed data and add to data.table
+StemArticlesData <- function() {
+  
+  # Read tidy data and keep only column that have to be stemed.
+  # Add === separate rows in stem output.
+  # dt that takes about 5GB RAM for 700000 obs. of 25 variables
+  # and 2.2GB for 700000 obs. of 5 variables as tbl
+  timestamp(prefix = "## START reading file ")
+  tidyDataFile <- file.path(tidyArticlesFolder, "tidy_articles_data.csv")
+  dt <- fread(tidyDataFile, stringsAsFactors = FALSE, encoding = "UTF-8") %>% 
+    as.tbl()
+  dt <- dt %>% mutate(sep = "===") %>%
+    select(sep, X, stemTitle, stemMetaDescription, stemPlaintext)
+  
+  # Check memory usage 
+  print(ll(unit = "MB"))
+  
+  # Prepare the list that helps us to stem 3 column 
+  sectionList <- list()
+  sectionList[[1]] <- list(columnToStem = "stemTitle", 
+                           stemedColumn = "stemedTitle",
+                           sourceFile = file.path(stemedArticlesFolder, 
+                                                  "stem_titles.txt"),
+                           stemedFile = file.path(stemedArticlesFolder, 
+                                                  "stemed_titles.txt"))
+  sectionList[[2]] <- list(columnToStem = "stemMetaDescription", 
+                           stemedColumn = "stemedMetaDescription",
+                           sourceFile = file.path(stemedArticlesFolder, 
+                                                  "stem_metadescriptions.txt"),
+                           stemedFile = file.path(stemedArticlesFolder, 
+                                                  "stemed_metadescriptions.txt"))
+  sectionList[[3]] <- list(columnToStem = "stemPlaintext", 
+                           stemedColumn = "stemedPlaintext",
+                           sourceFile = file.path(stemedArticlesFolder, 
+                                                  "stem_plaintext.txt"),
+                           stemedFile = file.path(stemedArticlesFolder, 
+                                                  "stemed_plaintext.txt"))
+  
+  timestamp(prefix = "## steming file ")
+  # Write the table with sep, X, columnToStem columns and run mystem.
+  # It takes about 30 min to process Title, MetaDescription and Plaintext
+  # in 700K rows table.
+  # https://tech.yandex.ru/mystem/
+  for (i in 1:length(sectionList)) {
+    write.table(dt[, c("sep","X", sectionList[[i]]$columnToStem)], 
+                sectionList[[i]]$sourceFile, 
+                fileEncoding = "UTF-8", sep = ",", quote = FALSE, 
+                row.names = FALSE, col.names = FALSE)
+    system(paste0("mystem -nlc ", sectionList[[i]]$sourceFile, " ", 
+                  sectionList[[i]]$stemedFile), intern = FALSE)  
+  }
+  
+  # Remove dt from memory and call garbage collection
+  rm(dt)
+  gc()
+  
+  # Check memory usage 
+  print(ll(unit = "MB"))
+  
+  timestamp(prefix = "## process file ")
+  # Process stemed files. it takes about 60 min to process 3 stemed files
+  for (i in 1:length(sectionList)) {
+    stemedText <- readLines(sectionList[[i]]$stemedFile, 
+                            warn = FALSE, 
+                            encoding = "UTF-8")
+    
+    # Split stemed text in chunks
+    chunkList <- chunk(stemedText, chunk.size = 10000000)
+    
+    # Clean chunks one by one and remove characters that were added by mystem
+    resLines <- c()
+    for (j in 1:length(chunkList)) {
+      resTemp <- chunkList[[j]] %>% 
+        str_replace_all("===,", "===") %>%
+        strsplit(split = "\\\\n|,") %>% unlist() %>% 
+        str_replace_all("(\\|[^ ]+)|(\\\\[^ ]+)|\\?|,|_", "")
+      resLines <- c(resLines, resTemp[resTemp!=""])
+    }  
+    
+    # Split processed text in rows using === added at the beginnig  
+    chunkedRes <- chunk(resLines, chunk.delimiter = "===", 
+                        fixed.delimiter = FALSE, 
+                        keep.delimiter = TRUE)
+    
+    # Process each row and extract key (row number) and stemed content
+    stemedList <- lapply(chunkedRes, 
+                         function(x) {
+                           data.frame(key = as.integer(str_replace_all(x[1], "===", "")), 
+                                      content = paste0(x[2:length(x)], collapse = " "), 
+                                      stringsAsFactors = FALSE)})
+    
+    # Combine all rows in data frame with key and content colums
+    sectionList[[i]]$dt <- bind_rows(stemedList)
+    colnames(sectionList[[i]]$dt) <- c("key", sectionList[[i]]$stemedColumn)
+    
+  }
+  
+  # Remove variables used in loop and call garbage collection
+  rm(stemedText, chunkList, resLines, chunkedRes, stemedList)
+  gc()
+  
+  # Check memory usage 
+  print(ll(unit = "MB"))
+  
+  # read tidy data again
+  timestamp(prefix = "## reading file (again)")
+  dt <- fread(tidyDataFile, stringsAsFactors = FALSE, encoding = "UTF-8") %>% 
+    as.tbl()
+  
+  # add key column as a key and add tables with stemed data to tidy data 
+  timestamp(prefix = paste0("## combining tables "))
+  dt <- dt %>% mutate(key = X)
+  
+  dt <- left_join(dt, sectionList[[1]]$dt, by = "key")
+  dt <- left_join(dt, sectionList[[2]]$dt, by = "key")
+  dt <- left_join(dt, sectionList[[3]]$dt, by = "key")
+  
+  sectionList[[1]]$dt <- ""
+  sectionList[[2]]$dt <- ""
+  sectionList[[3]]$dt <- ""
+  
+  dt <- dt %>% select(-V1, -X, -urlKey, -metaDescription, -plaintext, -stemTitle, -stemMetaDescription, -stemPlaintext, - key)
+  
+  write.csv(dt, file.path(stemedArticlesFolder, "stemed_articles_data.csv"), fileEncoding = "UTF-8")
+  
+  file.remove(sectionList[[1]]$sourceFile)
+  file.remove(sectionList[[2]]$sourceFile)
+  file.remove(sectionList[[3]]$sourceFile)
+  file.remove(sectionList[[1]]$stemedFile)
+  file.remove(sectionList[[2]]$stemedFile)
+  file.remove(sectionList[[3]]$stemedFile)
+  
+  # Remove dt, sectionList and call garbage collection
+  rm(dt)
+  gc()
+  
+  # Check memory usage
+  print(ll(unit = "MB"))
+  
+  timestamp(prefix = "## END ")
+}
+```
+
+
+А теперь вопросы для зала:
+1. Насколько "неправильно сужать область воспроизведения исследования" до определенной операционной системы? Или надо по максимуму делать иследование воспроизводимым одновременно под macOS, Linux, Windows?
+2. Допустимо ли в коде итогового исследования оставлять timestamp'ы типа print("выполняется шаг  N")?
+3. Почему в некоторых случаях `2.7GHz i5, 16Gb Ram, SSD, macOS 10.12, R version 3.4.0` в два раза производительнее `3.5GHz Xeon E-1240 v5, 32Gb, SSD, Windows Server 2012`?
+4. Достаточно ли комментариев в коде?
+5. Насколько код читаем и насколько он не "code smells"?
