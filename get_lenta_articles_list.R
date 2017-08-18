@@ -352,7 +352,6 @@ UnionData <- function() {
 
 ## STEP 5. Prepare wget CMD files for parallel downloading social
 # Create CMD file.
-
 CreateWgetCMDFilesForSocial <- function() {
   timestamp()
   articlesLinks <- readLines(file.path(tempDataFolder, "articles.urls"))
