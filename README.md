@@ -1,13 +1,16 @@
-# Анализируй это. Lenta.ru
+# Анализируй это. Lenta.ru (часть 1)
 ### What, How, Why
 
-На мой взгляд, применяя вопросы "What, How and Why" в отношении какой-либо задачи, самое важное будет "Why". Именно ответ на этот вопрос определит, чего вы в итоге добьетесь и как вы это сделаете. В моем случае, коротким ответом на вопрос "почему" будет "получение опыта". Более развернутым же объяснением будет "выполнение какого-либо реального задания, в рамках которого я смогу применить навыки, полученные во время обучения, а так же получить результат, который я бы смог показывать в качестве подтверждения своих умений". Хотя на самом деле вся интрига "а зачем тебе это все" раскрыта  [вот здесь (оффтоп)](https://habrahabr.ru/post/329906). Там же будет и мой бэкграунд.
+What - анализ статей новостного ресурса Lenta.ru за последние 18 лет (с 1 сентября 1999 года). How - весь процесс выполняется средствами языка R (с привлечением программы MySterm от Yandex на отдельном участке). Why... На мой взгляд, применяя вопросы "What, How and Why" в отношении какой-либо задачи, самое важное все-таки будет "Why". Именно ответ на этот вопрос определит, чего вы в итоге добьетесь и как вы это сделаете. В моем случае, коротким ответом на вопрос "почему" будет "получение опыта" в Big Data. Более развернутым же объяснением будет "выполнение какого-либо реального задания, в рамках которого я смогу применить навыки, полученные во время обучения, а так же получить результат, который я бы смог показывать в качестве подтверждения своих умений".  
+
+```Отступление. Мой бэкграунд - 15 лет в качестве программиста 1С и первые 5 курсов в специализации [Data Science](https://www.coursera.org/specializations/jhu-data-science) от Coursera.org, которые в основном базы и работе с R. Ну еще можно добавить опыт написания небольших процедур на Basic, Pascal и Java 17-18 лет назад. Несмотря на то, что в текущей профессии 80лвл почти достигнут, джоб-оффер из Гугла еще никто не прислал. Поэтому было принято решение повестить на мейстрим и пощупать бигдату, так как порог вхождения относительно ниже в сравнении той же Java. 
+```
 
 Конечно, определившись внутри себя, что мне нужны практика и портфолио, стоило бы схватить пару датасетов, коих сейчас море, и анализировать, анализировать, анализировать... Но прикинув в голове свои скилы по непосредственному анализу и вспомнив, что анализ это только 20-30% времени и остальное это поиск-сбор-очиска-подготовка данных, решил взяться за второе. Да и хотелось что-то особенное, возможно даже интересное, в отличии от анализа проданных в США авиабилетов за последние 30 лет или статистику арестов.
 
 В качестве объекта исследования была выбрана [Lenta.ru](https://lenta.ru). От части, потому что я являюсь ее давним читателем, хоть и регулярно плююсь от того шлака, который проскакивает мимо редакторов (если таковые там вообще имеются). От части, потому что она показалась относительно легким для data mining. Однако если быть честным, то подходя к выбору объекта я практически не учитывал вопросы "а что я буду с этой датой делать" и "какие вопросы буду задавать". И связано это с тем, что на текущий момент я более-менее освоил только Getting and Cleaning Data и мои знания в части анализа очень скудны. Я конечно представлял себе, что как минимум могу ответить на вопрос "как изменилась среднедневное количество публикуемых новостей за последние 5-10 лет", но дальше этого я не задумывался.  
 
-И так, эта статья будет посвящена добыванию и очистке данных, которые будут пригодны для анализа. 
+И так, эта статья будет посвящена добыванию и очистке данных, которые будут пригодны для анализа Lenta.ru. 
 
 ### Grabbing
 Первым делом мне необходимо было определиться, как сграббить и распарсить содержимое страниц ресурса. Google подсказал, что оптимальным для этого будет использование пакета [rvest](https://cran.r-project.org/web/packages/rvest/rvest.pdf), который одновременно позволяет получить текст страницы по ее адресу и при помощи xPath выдернуть содержимое нужных мне полей. Конечно, продвинувшись дальше, мне пришлось разбить эту задачу на две - получение страниц и непосредственный парсинг, но это я понял позже, а пока первым шагом было получение списка ссылок на сами статьи.
@@ -18,31 +21,48 @@
 require(lubridate)
 require(rvest)
 require(dplyr)
+require(tidyr)
 require(purrr)
 require(XML)
 require(data.table)
+require(stringr)
+require(jsonlite)
+require(reshape2)
 ```
 
 Не хитрый код, который позволил получить все ссылки на все статьи за последние 8 лет:
 ```R
-  # prepare vector of links of archive pages in https://lenta.ru//yyyy/mm/dd/ format
+articlesStartDate <- as.Date("2010-01-01")
+articlesEndDate <- as.Date("2017-06-30")
+## STEP 1. Prepare articles links list
+# Dowload list of pages with archived articles. 
+# Takes about 40 minutes
+GetNewsListForPeriod <- function() {
+  timestamp()
+  # Prepare vector of links of archive pages in https://lenta.ru//yyyy/mm/dd/ format
   dayArray <- seq(as.Date(articlesStartDate), as.Date(articlesEndDate), 
                   by="days")
   archivePagesLinks <- paste0(baseURL, "/", year(dayArray), 
-                      "/", formatC(month(dayArray), width = 2, format = "d", flag = "0"), 
-                      "/", formatC(day(dayArray), width = 2, format = "d", flag = "0"), 
-                      "/")
+                              "/", formatC(month(dayArray), width = 2, format = "d", flag = "0"), 
+                              "/", formatC(day(dayArray), width = 2, format = "d", flag = "0"), 
+                              "/")
+  # Go through all pages and extract all news links
   articlesLinks <- c()
   for (i in 1:length(archivePagesLinks)) {
     pg <- read_html(archivePagesLinks[i], encoding = "UTF-8")
-    total <- html_nodes(pg, 
-              xpath=".//section[@class='b-longgrid-column']//div[@class='titles']//a") %>% 
-              html_attr("href")   
-    articlesLinks <- c(articlesLinks, total)
+    
+    linksOnPage <- html_nodes(pg, 
+                        xpath=".//section[@class='b-longgrid-column']//div[@class='titles']//a") %>% 
+      html_attr("href")   
+    articlesLinks <- c(articlesLinks, linksOnPage)
     saveRDS(articlesLinks, file.path(tempDataFolder, "tempArticlesLinks.rds"))
   }
+  
+  # Add root and write down all the news links
   articlesLinks <- paste0(baseURL, articlesLinks)
   writeLines(articlesLinks, file.path(tempDataFolder, "articles.urls"))
+  timestamp()
+}
 ```
 Сгенерировав массив дат с `2010-01-01` по `2017-06-30` и преобразовав `archivePagesLinks`, я получил ссылки на все так называемые "архивные страницы":
 
@@ -57,7 +77,7 @@ require(data.table)
 > length(archivePagesLinks)
 [1] 2738
 ```
-При помощи метода `read_html` я в цикле "скачал" содержимое страниц в буфер, а при помощи методов `html_nodes` и `html_attr` получил непосредственно ссылки на статьи:
+При помощи метода `read_html` я в цикле "скачал" содержимое страниц в буфер, а при помощи методов `html_nodes` и `html_attr` получил непосредственно ссылки на статьи, коих вышло почти `400К`:
 ```
 > head(articlesLinks)
 [1] "https://lenta.ru/news/2009/12/31/kids/"     
@@ -70,13 +90,16 @@ require(data.table)
 [1] 379862
 ```
 
-После получения первых результатов я осознал проблему. Код, приведенный выше, выполнялся примерно `40 мин`. С учетом размера массива в `2738` ссылок, который был обработан за это время, можно посчитать, что для обработки `379862` ссылок уйдет `5550` минут или `92 с половиной часа`, что согласитесь, ни в какие ворота... Встроенные методы `readLines {base}` и `download.file {utils}`, которые позволяли просто получить текст, давали схожие результаты. Метод `htmlParse {XML}`, который позволял аналогично `read_html` продолжить парсинг содержимого, также ситуацию не улучшил. Тот же результат с использованием `getURL {RCurl}`. Тупик.
+После получения первых результатов я осознал проблему. Код, приведенный выше, выполнялся примерно `40 мин`. С учетом того, что за это время было обработано `2738` ссылок, можно посчитать, что для обработки `379862` ссылок уйдет `5550` минут или `92 с половиной часа`, что согласитесь, ни в какие ворота... Встроенные методы `readLines {base}` и `download.file {utils}`, которые позволяли просто получить текст, давали схожие результаты. Метод `htmlParse {XML}`, который позволял аналогично `read_html` скачать и продолжить парсинг содержимого, также ситуацию не улучшил. Тот же результат с использованием `getURL {RCurl}`. Тупик.
 
 В поисках решения проблемы, я и гугл решили посмотреть в сторону "параллельного" исполнения моих запросов, так в момент работы кода ни сеть, ни память, ни процессор не были загружены. Гугл подсказал копнуть в сторону `parallel-package {parallel}`. Несколько часов изучения и тестов показали, что профита с запуском даже в двух "параллельных" потоках почему нет. Обрывочные сведения в гугле рассказали, что с помощью этого пакета можно распараллелить какие-нибудь вычисления или манипуляции с данными, но при работе с диском или внешним источником все запросы выполняются в рамках одного процесса и выстраиваются в очередь (могу ошибаться в понимании ситуации). Да и как понял, даже если бы тема и взлетела, ожидать увеличение производительности стоило только кратно имеющимся ядрам, т.е. даже при наличии 8 штук (которых у меня и не было) и реальной параллельности, курить мне предстояло примерно 690 минут. 
 
 Следующей идеей было запустить параллельно несколько процессов R, в которых бы обрабатывалась своя часть большого списка ссылок. Однако гугл на вопрос "как из сессии R запустить несколько новых сессий R" ничего не сказал. Подумал еще над вариантом запуска R-скрипта через командную строку, но опыт работы с CMD были на уровне "набери dir и получишь список файлов в папке". Я снова оказался в тупике. 
 
 Когда гугл перестал мне выдавать новые результаты, я с чистой совестью решил обратиться за помощью к залу. Так как гугл довольно часто выдавал [stackoverflow](https://stackoverflow.com), я решил попытать счастье именно там. Имея опыт общения на тематических форумах и зная реакцию на вопросы новичков, попытался максимально четко и ясно изложить [проблему](https://stackoverflow.com/questions/39180106/i-have-to-grab-plantext-from-over-290k-webpages-is-there-a-way-to-improve-the-s). И о чудо, спустя какие несколько часов я получил от [Bob Rudis](https://rud.is/) более чем развернутый ответ, который после подстановки в мой код, практически полностью решал мою задачу. Правда с оговоркой: я совершенно не понимал как он работает. Я первый раз слышал про `wget`, не понимал, что в коде делают с `WARC` и зачем в метод передают функцию (повторюсь, семинариев не кончал и в моем предыдущем языке таки финты не использовались). Однако если долго-долго смотреть на код, то просветление все таки приходит. А добавив попытки выполнять его по кускам, разбирая функцию за функцией, можно добиться определенных результатов. Ну а с `wget` мне помог справиться все тот же гугл. 
+
+```Отступление. Несмотря на то, что вся разработка велась в среде macOS, необходимость использования wget (а в дальнешйем и MyStem, которая заработала только по виндой), пришлось сузить среду исполнения до Windows. Я имею представление о том, что curl может делать что-то подобное, и возможно я таки выделю время и попробую реализовать с его помощью, но пока я решил не останавливаться на месте и идти дальше. 
+```
 
 В итоге суть решения свелась к следующему - предварительно подготовленный файл, содержащий ссылки на статьи, подсовывался команде `wget`:
 ```
@@ -86,6 +109,7 @@ require(data.table)
 ```R
   system("wget --warc-file=lenta -i lenta.urls", intern = FALSE)
 ```
+
 После выполнения, я получал кучу файлов (по одному на каждую переданную ссылку) с html содержимым веб-страниц. Также в моем распоряжении был запакованный `WARC`, который содержал в себе лог общения с ресурсом, а так же то самое содержимое веб-страниц. Именно `WARC` и предлагал парсить [Bob Rudis](https://rud.is/). То что нужно. Причем у меня оставилсь копии прочитанных страниц, что делало возможно их повторное чтение.
 
 Первые замеры производительности показали, что для закачки `2000` ссылок было потрачено `10 минут`, методом экстраполяции (давно хотел использовать это слово) получал `1890 минут` для всех статей - "олмост три таймс фастер бат нот энаф" - почти в три раза быстрее, но все равно недостаточно. Вернувшись на пару шагов назад и протестив новый механизм с учетом `parallel-package {parallel}`, понял, что и здесь профита не светит.
@@ -93,10 +117,16 @@ require(data.table)
 Оставался ход конем. Запуск нескольких по-настоящему параллельных процессов. С учетом того, что от "reproducible research" (принцип, о котором говорили на курсах) шаг в сторону я уже сделал (использовав внешнюю программу wget и фактически привязав выполнение к среде Windows), я решил сделать еще один шаг и снова вернуться к идее запуска параллельных процессов, однако уже вне R. Как заставить CMD файл выполнять несколько последовательных команд, не дожидаясь выполнения предыдущей (читай параллельно), рассказал все тот же [stackoverflow](https://stackoverflow.com). Оказалось, что замечательная команда `START` позволяет запустить команду на выполнение в отдельном окне. Вооружившись этим знанием, разродился следующим кодом:
 
 ```R
+## STEP 2. Prepare wget CMD files for parallel downloading
+# Create CMD file.
+# Downloading process for 400K pages takes about 3 hours. Expect about 70GB 
+# in html files and 12GB in compressed WARC files
+CreateWgetCMDFiles <- function() {
+  timestamp()
   articlesLinks <- readLines(file.path(tempDataFolder, "articles.urls"))
   dir.create(warcFolder, showWarnings = FALSE)
   
-  # split up articles links array by 10K links 
+  # Split up articles links array by 10K links 
   numberOfLinks <- length(articlesLinks)
   digitNumber <- nchar(numberOfLinks)
   groupSize <- 10000
@@ -105,7 +135,7 @@ require(data.table)
   
   for (i in 1:length(filesGroup)) {
     
-    # prepare folder name as 00001-10000, 10001-20000 etc
+    # Prepare folder name as 00001-10000, 10001-20000 etc
     firstFileInGroup <- filesGroup[i]
     lastFileInGroup <- min(firstFileInGroup + groupSize - 1, numberOfLinks)
     leftPartFolderName <- formatC(firstFileInGroup, width = digitNumber, 
@@ -115,22 +145,29 @@ require(data.table)
     subFolderName <- paste0(leftPartFolderName, "-", rigthPartFolderName)
     subFolderPath <- file.path(downloadedArticlesFolder, subFolderName)
     dir.create(subFolderPath)
-
-    # write articles.urls for each 10K folders that contains 10K articles urls
+    
+    # Write articles.urls for each 10K folders that contains 10K articles urls
     writeLines(articlesLinks[firstFileInGroup:lastFileInGroup], 
                file.path(subFolderPath, "articles.urls"))
     
-    # add command line in CMD file as:
-    # START wget --warc-file=warc\000001-010000 -i 000001-010000\list.urls -P 000001-010000
-    cmdCode <-paste0("START ..\\wget --warc-file=warc\\", subFolderName," -i ", 
+    # Add command line in CMD file that will looks like:
+    # 'START wget --warc-file=warc\000001-010000 -i 000001-010000\list.urls -P 000001-010000'
+    cmdCode <-paste0("START ..\\wget -i ", 
                      subFolderName, "\\", "articles.urls -P ", subFolderName)
+    # Use commented code below for downloading with WARC files:
+    #cmdCode <-paste0("START ..\\wget --warc-file=warc\\", subFolderName," -i ", 
+    #                 subFolderName, "\\", "articles.urls -P ", subFolderName)
+    
     cmdCodeAll <- c(cmdCodeAll, cmdCode)
   }
   
+  # Write down command file
   cmdFile <- file.path(downloadedArticlesFolder, "start.cmd")
   writeLines(cmdCodeAll, cmdFile)
   print(paste0("Run ", cmdFile, " to start downloading."))
   print("wget.exe should be placed in working directory.")
+  timestamp()
+}
 ```
 Этот код разбивает массив ссылок на блоки по 10000 штук (в моем случае получилось 38 блоков). Для каждого блока в цикле создается папка вида  `00001-10000`, `10001-20000` и т.д, в которую складывается свой собственный файл "articles.urls" (со своим 10-тысячным набором ссылок) и туда же попадут скачанные файлы. В этом же цикле собирается CMD файл, который должен одновременно запустить 38 окон:
 ```
@@ -146,7 +183,7 @@ START ..\wget --warc-file=warc\370001-379862 -i 370001-379862\articles.urls -P 3
 
 ![Загрузка компьютера в момент одновременной закачки страниц](images/download_performance.jpg)
 
-Итоговое время `180 минут` или `3 часа`. "Костыльный" параллелизм дал почти `10-кратный` выигрыш по сравнению с однопоточным выполнением `wget` и `30-кратный` выигрыш относительно изначального варианта использования `read_html {rvest}`. Это была первая маленькая победа и подобный "костыльный" подход мне пришлось применить потом еще один раз.
+Итоговое время `180 минут` или `3 часа`. "Костыльный" параллелизм дал почти `10-кратный` выигрыш по сравнению с однопоточным выполнением `wget` и `30-кратный` выигрыш относительно изначального варианта использования `read_html {rvest}`. Это была первая маленькая победа и подобный "костыльный" подход мне пришлось применить потом еще несколько раз.
 
 Результатом выполнения на жестком диске был представлен следующим:
 ```
@@ -167,9 +204,13 @@ START ..\wget --warc-file=warc\370001-379862 -i 370001-379862\articles.urls -P 3
 
 Прежде чем что-то выдергивать со скачанной страницы, мне предстояло определить что именно выдергивать, какая именно информация мне может быть интересна. После долго изучения содержимого страниц, подготовил следующий код:
 ```R
+# Parse srecific file
+# Parse srecific file
 ReadFile <- function(filename) {
+  
   pg <- read_html(filename, encoding = "UTF-8")
   
+  # Extract Title, Type, Description
   metaTitle <- html_nodes(pg, xpath=".//meta[@property='og:title']") %>%
     html_attr("content") %>% 
     SetNAIfZeroLength() 
@@ -179,10 +220,8 @@ ReadFile <- function(filename) {
   metaDescription <- html_nodes(pg, xpath=".//meta[@property='og:description']") %>% 
     html_attr("content") %>% 
     SetNAIfZeroLength()
-  rubric <- html_nodes(pg, xpath=".//div[@class='b-subheader__title js-nav-opener']") %>% 
-    html_text() %>% 
-    SetNAIfZeroLength()
   
+  # Extract script contect that contains rubric and subrubric data
   scriptContent <- html_nodes(pg, xpath=".//script[contains(text(),'chapters: [')]") %>% 
     html_text() %>% 
     strsplit("\n") %>% 
@@ -196,18 +235,9 @@ ReadFile <- function(filename) {
     chapters <- scriptContent[grep("chapters: ", scriptContent)] %>% unique()
   }
   
-  title <- html_nodes(pg, xpath=".//head/title") %>% 
-    html_text() %>% 
-    SetNAIfZeroLength()
-  
-  #shareFB <- html_nodes(pg, xpath=".//div[@data-target='fb']")
-  #shareVK <- html_nodes(pg, xpath=".//div[@data-target='vk']")
-  #shareOK <- html_nodes(pg, xpath=".//div[@data-target='ok']")
-  #shareTW <- html_nodes(pg, xpath=".//div[@data-target='tw']")
-  #shareLJ <- html_nodes(pg, xpath=".//div[@data-target='LJ']")
-
   articleBodyNode <- html_nodes(pg, xpath=".//div[@itemprop='articleBody']")
   
+  # Extract articles body
   plaintext <- html_nodes(articleBodyNode, xpath=".//p") %>% 
     html_text() %>% 
     paste0(collapse="") 
@@ -215,6 +245,7 @@ ReadFile <- function(filename) {
     plaintext <- NA
   }
   
+  # Extract links from articles body 
   plaintextLinks <- html_nodes(articleBodyNode, xpath=".//a") %>% 
     html_attr("href") %>% 
     unique() %>% 
@@ -223,6 +254,7 @@ ReadFile <- function(filename) {
     plaintextLinks <- NA
   }
   
+  # Extract links related to articles
   additionalLinks <- html_nodes(pg, xpath=".//section/div[@class='item']/div/..//a") %>% 
     html_attr("href") %>% 
     unique() %>% 
@@ -231,6 +263,7 @@ ReadFile <- function(filename) {
     additionalLinks <- NA
   }
   
+  # Extract image Description and Credits
   imageNodes <- html_nodes(pg, xpath=".//div[@class='b-topic__title-image']")
   imageDescription <- html_nodes(imageNodes, xpath="div//div[@class='b-label__caption']") %>% 
     html_text() %>% 
@@ -241,6 +274,7 @@ ReadFile <- function(filename) {
     unique() %>% 
     SetNAIfZeroLength() 
   
+  # Extract video Description and Credits
   if (is.na(imageDescription)&is.na(imageCredits)) {
     videoNodes <- html_nodes(pg, xpath=".//div[@class='b-video-box__info']")
     videoDescription <- html_nodes(videoNodes, xpath="div[@class='b-video-box__caption']") %>% 
@@ -256,10 +290,12 @@ ReadFile <- function(filename) {
     videoCredits <- NA
   }
   
+  # Extract articles url
   url <- html_nodes(pg, xpath=".//head/link[@rel='canonical']") %>% 
     html_attr("href") %>% 
     SetNAIfZeroLength()
   
+  # Extract authors
   authorSection <- html_nodes(pg, xpath=".//p[@class='b-topic__content__author']")
   authors <- html_nodes(authorSection, xpath="//span[@class='name']") %>% 
     html_text() %>% 
@@ -272,6 +308,7 @@ ReadFile <- function(filename) {
     authorLinks <- paste0(authorLinks, collapse = "|")
   }
   
+  # Extract publish date and time
   datetimeString <- html_nodes(pg, xpath=".//div[@class='b-topic__info']/time[@class='g-date']") %>% 
     html_text() %>% 
     unique() %>% 
@@ -284,17 +321,15 @@ ReadFile <- function(filename) {
       unique() %>% 
       SetNAIfZeroLength()
   }
-
+  
   data.frame(url = url,
              filename = filename, 
              metaTitle= metaTitle,
              metaType= metaType,
              metaDescription= metaDescription,
-             rubric= rubric,
              chapters = chapters,
              datetime = datetime,
              datetimeString = datetimeString,
-             title = title, 
              plaintext = plaintext, 
              authors = authors, 
              authorLinks = authorLinks,
@@ -305,24 +340,31 @@ ReadFile <- function(filename) {
              videoDescription = videoDescription,
              videoCredits = videoCredits,
              stringsAsFactors=FALSE)
+  
 }
 ```
-Для начала заголовок, который я получаю его из двух мест. Изначально я получал из `title` что-то вида `Швеция признана лучшей страной мира для иммигрантов: Общество: Мир: Lenta.ru`, в надежде разбить заголовок на непосредственный заголове и на рубрику с подрубрикой. Однако потом решил под подстраховки подтянуть заголовок в чистом виде из метаданных страницы.
+Для начала заголовок. Изначально я получал из `title` что-то вида `Швеция признана лучшей страной мира для иммигрантов: Общество: Мир: Lenta.ru`, в надежде разбить заголовок на непосредственный заголове и на рубрику с подрубрикой. Однако потом решил под подстраховки подтянуть заголовок в чистом виде из метаданных страницы.
 
 Дату и время я получаю из `<time class="g-date" datetime="2017-07-10T12:35:00Z" itemprop="datePublished" pubdate=""> 15:35, 10 июля 2017</time>`, причем для подстраховки решил получить не только `2017-07-10T12:35:00Z`, но и текстовое представление `15:35, 10 июля 2017` и как оказалось не зря. Это текстовое представление позволило получать время статьи для случаев, когда `time[@class='g-date']` по какой-то причине на странице отсутствовал.
 
 Авторство в статьях отмечается крайне редко, однако я все равно решил выдернуть эту информацию, на всякий случай. Также мне показалось интересным ссылки, которые появлялись в текстах самих статей и под ними в разделе "Ссылки по теме". На правильный парсинг информации о картинках и видео в начале статьи потратил чуть больше времени, чем хотелось бы, но тоже на всякий случай. 
 
-Для получения рубрики и подрубрики я решил подстраховаться и сохранить строку `chapters: ["Мир","Общество","lenta.ru:_Мир:_Общество:_Швеция_признана_лучшей_страной_мира_для_иммигрантов"], // Chapters страницы`, показалось, что и нее выдернуть "Мир" и "Общество" будет чуть легче, чем из заголовка.
+Для получения рубрики и подрубрики (изначально хотел выдергивать из заголовка) я решил подстраховаться и сохранить строку `chapters: ["Мир","Общество","lenta.ru:_Мир:_Общество:_Швеция_признана_лучшей_страной_мира_для_иммигрантов"], // Chapters страницы`, показалось, что и нее выдернуть "Мир" и "Общество" будет чуть легче, чем из заголовка.
 
 Особый интерес у меня вызвало количество расшариваний, количество комментариев к статье и конечно сами комментарии (словарное содержимое, временная активность), так как именно это было единственной информацией о том, как читатели реагировали на статью. Но именно самое интересное у меня и не получилось. Счетчики количества шар и камменнтов устанавливаются скриптом, который выполняетя после загрузки страницы. А весь мой суперхитрый код выкачивал страницу до этого момента, оставляя соответствующие поля пустыми. Комметарии также подгружаются скриптом, кроме того они отключаются для статей спустя какое-то время и получить их не представляется возможным. Но я еще работаю на этим вопросом, так как все-таки хочется увидеть зависимость наличия слов Украина/Путин/Кандолиза и количества срача в камментах.
+
+```Отступление. На самом деле, благодаря подсказке бывшего коллеги, у меня таки получилось добраться до этой инфы, но об этом будет ниже.```
 
 Вот в принципе и вся информация, которую я посчитал полезной.
 
 Следущий код позволил мне запустить парсинг фалов, находящейся в первой папке (из 38):
 
 ```R
+folderNumber <- 1
+# Read and parse files in folder with provided number
 ReadFilesInFolder <- function(folderNumber) {
+  timestamp()
+  # Get name of folder that have to be parsed
   folders <- list.files(downloadedArticlesFolder, full.names = FALSE, 
                         recursive = FALSE, pattern = "-")
   folderName <- folders[folderNumber]
@@ -330,6 +372,7 @@ ReadFilesInFolder <- function(folderNumber) {
   files <- list.files(currentFolder, full.names = TRUE, 
                       recursive = FALSE, pattern = "index")
   
+  # Split files in folder in 1000 chunks and parse them using ReadFile
   numberOfFiles <- length(files)
   print(numberOfFiles)
   groupSize <- 1000
@@ -341,6 +384,8 @@ ReadFilesInFolder <- function(folderNumber) {
     print(paste0(firstFileInGroup, "-", lastFileInGroup))
     dfList[[i]] <- map_df(files[firstFileInGroup:lastFileInGroup], ReadFile)
   }
+  
+  # combine rows in data frame and write down
   df <- bind_rows(dfList)
   write.csv(df, file.path(parsedArticlesFolder, paste0(folderName, ".csv")), 
             fileEncoding = "UTF-8")
@@ -352,11 +397,16 @@ ReadFilesInFolder <- function(folderNumber) {
 
 И вот обещанный второй ход конем. Запуск понастоящему параллельных сессий R (благо опыт общения с CMD уже имелся). Поэтому при помощи этого скрипта, я получил необходимый CMD файл:
 ```R
-  # get list of folders that contain downloaded articles
+## STEP 3. Parse downloaded articles
+# Create CMD file for parallel articles parsing.
+# Parsing process takes about 1 hour. Expect about 1.7Gb in parsed files
+CreateCMDForParsing <- function() {
+  timestamp()
+  # Get list of folders that contain downloaded articles
   folders <- list.files(downloadedArticlesFolder, full.names = FALSE, 
                         recursive = FALSE, pattern = "-")
   
-  # create CMD contains commands to run parse.R script with specified folder number
+  # Create CMD contains commands to run parse.R script with specified folder number
   nn <- 1:length(folders)
   cmdCodeAll <- paste0("start C:/R/R-3.4.0/bin/Rscript.exe ", 
                        file.path(getwd(), "parse.R "), nn)
@@ -364,6 +414,8 @@ ReadFilesInFolder <- function(folderNumber) {
   cmdFile <- file.path(downloadedArticlesFolder, "parsing.cmd")
   writeLines(cmdCodeAll, cmdFile)
   print(paste0("Run ", cmdFile, " to start parsing."))
+  timestamp()
+}
 ```
 
 Вида:
@@ -403,6 +455,11 @@ ReadFilesInFolder(n)
 
 Остается только выполнить скрипт, который объединит 38 только что созданных файлов:
 ```R
+## STEP 4. Prepare combined articles data
+# Read all parsed csv and combine them in one.
+# Expect about 1.7Gb in combined file
+UnionData <- function() {
+  timestamp()
   files <- list.files(parsedArticlesFolder, full.names = TRUE, recursive = FALSE)
   dfList <- c()
   for (i in 1:length(files)) {
@@ -413,6 +470,8 @@ ReadFilesInFolder(n)
   df <- bind_rows(dfList)
   write.csv(df, file.path(parsedArticlesFolder, "untidy_articles_data.csv"), 
             fileEncoding = "UTF-8")
+  timestamp()
+}
 ```
 
 И в итоге у нас на диске `1.739MB` неочищеной и неприведенной даты:
@@ -464,6 +523,7 @@ Read 379746 rows and 21 (of 21) columns from 1.698 GB file in 00:00:18
 ```
 Ну а дальше предстояло проверить каждую колонку таблицы, есть ли в ней что-нибудь вменяемое или там только `NA`. И если что-то есть - привести это что-то к читаемому виду (а этом этапе мне пришлось несколько раз подпиливать Parsing). В итоге код, который приводил дату в вид, готовый для анализа стал таким:
 ```R
+# Load required packages
 require(lubridate)
 require(dplyr)
 require(tidyr)
@@ -501,7 +561,7 @@ TityData <- function() {
   # Remove duplicate rows, remove rows with url = NA, create urlKey column as a key
   dtD <- dfM %>% 
     select(-V1,-X)  %>% 
-    distinct(url, .keep_all=TRUE) %>% 
+    distinct(url, .keep_all = TRUE) %>% 
     na.omit(cols="url") %>%
     mutate(urlKey = gsub(":|\\.|/", "", url))
   
@@ -526,7 +586,6 @@ TityData <- function() {
   # and subrubric value "Украина"
   dtD <- dtD %>% 
     mutate(chapters = gsub('\"|\\[|\\]| |chapters:', "", chapters)) %>%
-    select(-rubric) %>%
     mutate(chaptersFormatted = as.character(sapply(chapters, SplitChapters))) %>%
     separate(col = "chaptersFormatted", into = c("rubric", "subrubric")
              , sep = "\\|", extra = "drop", fill = "right", remove = FALSE) %>%
@@ -596,12 +655,12 @@ TityData <- function() {
   
   # SECTION 5
   print(paste0("5 ",Sys.time()))  
-  # Remove rows with missed datetime values, replace title with metaTitle,
+  # Remove rows with missed datetime values, rename metaTitle to title,
   # remove columns that we do not need anymore  
   dtD <- dtD %>%
     as.data.table() %>%
     na.omit(cols="datetime") %>%
-    select(-filename, -title, -metaType, -datetimeString, -datetimeNew) %>%
+    select(-filename, -metaType, -datetimeString, -datetimeNew) %>%
     rename(title = metaTitle) %>%
     select(url, urlKey, datetime, rubric, subrubric, title, metaDescription, plaintext, 
            authorLinks, additionalLinks, plaintextLinks, imageDescription, imageCreditsPerson,
@@ -738,8 +797,17 @@ TityData <- function() {
   # SECTION 9
   print(paste0("9 ",Sys.time()))
   write.csv(dtD, file.path(tidyArticlesFolder, "tidy_articles_data.csv"), fileEncoding = "UTF-8")
+  
   # SECTION 10 Finish
   print(paste0("10 ",Sys.time()))
+  
+  # SECTION 11 Adding social
+  dfM <- read.csv(file.path(tidyArticlesFolder, "tidy_articles_data.csv"), stringsAsFactors = FALSE, encoding = "UTF-8")
+  dfS <- read.csv(file.path(parsedArticlesFolder, "social_articles.csv"), stringsAsFactors = FALSE, encoding = "UTF-8")
+  dt <- as.tbl(dfM)
+  dtS <- as.tbl(dfS) %>% rename(url = link) %>% select(url, FB, VK, OK, Com)
+  dtG <- left_join(dt, dtS, by = "url")
+  write.csv(dtG, file.path(tidyArticlesFolder, "tidy_articles_data.csv"), fileEncoding = "UTF-8")
 }
 ```
 
@@ -818,7 +886,21 @@ Classes ‘data.table’ and 'data.frame':  376913 obs. of  19 variables:
 
 
 ### REPRODUCIBLE RESEARCH
-В какой-то момент (ближе к концу шага Stemming) решил проверить насколько мой ресерч является репродюсибл. Для этого в качестве начально даты было указано `1 сентября 1999 года`.
+В какой-то момент (ближе к концу шага STEMMING) решил проверить насколько мой ресерч является репродюсибл. Для этого в качестве начально даты было указано `1 сентября 1999 года`.
+
+Парсинг архивных страниц занял `2 часа` и его итогом стал список из `700К ссылок`:
+```R
+> head(articlesLinks)
+[1] "https://lenta.ru/news/1999/08/31/stancia_mir/"
+[2] "https://lenta.ru/news/1999/08/31/vzriv/"      
+[3] "https://lenta.ru/news/1999/08/31/credit_japs/"
+[4] "https://lenta.ru/news/1999/08/31/fsb/"        
+[5] "https://lenta.ru/news/1999/09/01/dagestan/"   
+[6] "https://lenta.ru/news/1999/09/01/kirgiz1/"    
+> length(articlesLinks)
+[1] 702246
+```
+
 Граббинг 700000 статей (за неполные 18 лет) в виде 70 одновременных процессов закончился за `4 часа`. Результат:
 ```
 > indexFiles <- list.files(downloadedArticlesFolder, full.names = TRUE, recursive = TRUE, pattern = "index")
@@ -854,3 +936,5 @@ Classes ‘data.table’ and 'data.frame':  376913 obs. of  19 variables:
 > file.size(file.path(tidyArticlesFolder, "tidy_articles_data.csv"))/1024/1024
 [1] 4534.328
 ```
+
+
