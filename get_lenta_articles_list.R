@@ -571,7 +571,7 @@ ReadSocial <- function() {
   dfList[[2]] <- dfVK
   dfList[[3]] <- dfOK
   dfList[[4]] <- dfCom
-  df <- bind_rows(dfList) 
+  df <- unique(bind_rows(dfList)) 
   dfCasted <- dcast(df, link ~ social, value.var = "quantity")
   dfCasted <- dfCasted[order(dfCasted$link),]
   
