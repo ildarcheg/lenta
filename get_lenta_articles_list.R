@@ -20,6 +20,9 @@ if (Sys.info()['sysname'] == "Windows") {
 }
 setwd(workingDirectory)
 
+# Load library that helps to chunk vectors
+source("chunk.R")
+
 # Set common variables
 baseURL <- "https://lenta.ru"
 tempDataFolder <- file.path(getwd(), "temp_data")
@@ -37,7 +40,7 @@ warcFolderForOK <- file.path(downloadedArticlesFolderForOK , "warc")
 downloadedArticlesFolderForCom <- file.path(getwd(), "downloaded_articles/com")
 warcFolderForCom <- file.path(downloadedArticlesFolderForCom , "warc")
 
-articlesStartDate <- as.Date("2010-01-01")
+articlesStartDate <- as.Date("1999-09-01")
 articlesEndDate <- as.Date("2017-06-30")
 
 # Creare required folders if not exist 
@@ -63,25 +66,30 @@ SetNAIfZeroLength <- function(param) {
 # Dowload list of pages with archived articles. 
 # Takes about 40 minutes
 GetNewsListForPeriod <- function() {
-  
-  # prepare vector of links of archive pages in https://lenta.ru//yyyy/mm/dd/ format
+  timestamp()
+  # Prepare vector of links of archive pages in https://lenta.ru//yyyy/mm/dd/ format
   dayArray <- seq(as.Date(articlesStartDate), as.Date(articlesEndDate), 
                   by="days")
   archivePagesLinks <- paste0(baseURL, "/", year(dayArray), 
                               "/", formatC(month(dayArray), width = 2, format = "d", flag = "0"), 
                               "/", formatC(day(dayArray), width = 2, format = "d", flag = "0"), 
                               "/")
+  # Go through all pages and extract all news links
   articlesLinks <- c()
   for (i in 1:length(archivePagesLinks)) {
     pg <- read_html(archivePagesLinks[i], encoding = "UTF-8")
-    total <- html_nodes(pg, 
+    
+    linksOnPage <- html_nodes(pg, 
                         xpath=".//section[@class='b-longgrid-column']//div[@class='titles']//a") %>% 
       html_attr("href")   
-    articlesLinks <- c(articlesLinks, total)
+    articlesLinks <- c(articlesLinks, linksOnPage)
     saveRDS(articlesLinks, file.path(tempDataFolder, "tempArticlesLinks.rds"))
   }
+  
+  # Add root and write down all the news links
   articlesLinks <- paste0(baseURL, articlesLinks)
   writeLines(articlesLinks, file.path(tempDataFolder, "articles.urls"))
+  timestamp()
 }
 
 ## STEP 2. Prepare wget CMD files for parallel downloading
@@ -89,11 +97,11 @@ GetNewsListForPeriod <- function() {
 # Downloading process takes about 3 hours. Expect about 70GB in html files
 # and 12GB in compressed WARC files
 CreateWgetCMDFiles <- function() {
-  
+  timestamp()
   articlesLinks <- readLines(file.path(tempDataFolder, "articles.urls"))
   dir.create(warcFolder, showWarnings = FALSE)
   
-  # split up articles links array by 10K links 
+  # Split up articles links array by 10K links 
   numberOfLinks <- length(articlesLinks)
   digitNumber <- nchar(numberOfLinks)
   groupSize <- 10000
@@ -102,7 +110,7 @@ CreateWgetCMDFiles <- function() {
   
   for (i in 1:length(filesGroup)) {
     
-    # prepare folder name as 00001-10000, 10001-20000 etc
+    # Prepare folder name as 00001-10000, 10001-20000 etc
     firstFileInGroup <- filesGroup[i]
     lastFileInGroup <- min(firstFileInGroup + groupSize - 1, numberOfLinks)
     leftPartFolderName <- formatC(firstFileInGroup, width = digitNumber, 
@@ -113,30 +121,34 @@ CreateWgetCMDFiles <- function() {
     subFolderPath <- file.path(downloadedArticlesFolder, subFolderName)
     dir.create(subFolderPath)
     
-    # write articles.urls for each 10K folders that contains 10K articles urls
+    # Write articles.urls for each 10K folders that contains 10K articles urls
     writeLines(articlesLinks[firstFileInGroup:lastFileInGroup], 
                file.path(subFolderPath, "articles.urls"))
     
-    # add command line in CMD file as:
-    # START wget --warc-file=warc\000001-010000 -i 000001-010000\list.urls -P 000001-010000
-    #cmdCode <-paste0("START ..\\wget --warc-file=warc\\", subFolderName," -i ", 
-    #                 subFolderName, "\\", "articles.urls -P ", subFolderName)
+    # Add command line in CMD file that will looks like:
+    # 'START wget --warc-file=warc\000001-010000 -i 000001-010000\list.urls -P 000001-010000'
     cmdCode <-paste0("START ..\\wget -i ", 
                      subFolderName, "\\", "articles.urls -P ", subFolderName)
+    # Use commented code below for downloading with WARC files:
+    #cmdCode <-paste0("START ..\\wget --warc-file=warc\\", subFolderName," -i ", 
+    #                 subFolderName, "\\", "articles.urls -P ", subFolderName)
+    
     cmdCodeAll <- c(cmdCodeAll, cmdCode)
   }
   
+  # Write down command file
   cmdFile <- file.path(downloadedArticlesFolder, "start.cmd")
   writeLines(cmdCodeAll, cmdFile)
   print(paste0("Run ", cmdFile, " to start downloading."))
   print("wget.exe should be placed in working directory.")
-  
+  timestamp()
 }
 
 ## STEP 3. Parse downloaded articles
 # Create CMD file for parallel articles parsing.
 # Parsing process takes about 1 hour. Expect about 1.7Gb in parsed files
 CreateCMDForParsing <- function() {
+  timestamp()
   # get list of folders that contain downloaded articles
   folders <- list.files(downloadedArticlesFolder, full.names = FALSE, 
                         recursive = FALSE, pattern = "-")
@@ -149,7 +161,7 @@ CreateCMDForParsing <- function() {
   cmdFile <- file.path(downloadedArticlesFolder, "parsing.cmd")
   writeLines(cmdCodeAll, cmdFile)
   print(paste0("Run ", cmdFile, " to start parsing."))
-  
+  timestamp()
 }
 
 # Parse srecific file
@@ -157,6 +169,7 @@ ReadFile <- function(filename) {
   
   pg <- read_html(filename, encoding = "UTF-8")
   
+  # Extract Title, Type, Description
   metaTitle <- html_nodes(pg, xpath=".//meta[@property='og:title']") %>%
     html_attr("content") %>% 
     SetNAIfZeroLength() 
@@ -166,10 +179,8 @@ ReadFile <- function(filename) {
   metaDescription <- html_nodes(pg, xpath=".//meta[@property='og:description']") %>% 
     html_attr("content") %>% 
     SetNAIfZeroLength()
-  rubric <- html_nodes(pg, xpath=".//div[@class='b-subheader__title js-nav-opener']") %>% 
-    html_text() %>% 
-    SetNAIfZeroLength()
   
+  # Extract script contect that contains rubric and subrubric data
   scriptContent <- html_nodes(pg, xpath=".//script[contains(text(),'chapters: [')]") %>% 
     html_text() %>% 
     strsplit("\n") %>% 
@@ -183,10 +194,6 @@ ReadFile <- function(filename) {
     chapters <- scriptContent[grep("chapters: ", scriptContent)] %>% unique()
   }
   
-  title <- html_nodes(pg, xpath=".//head/title") %>% 
-    html_text() %>% 
-    SetNAIfZeroLength()
-  
   #shareFB <- html_nodes(pg, xpath=".//div[@data-target='fb']")
   #shareVK <- html_nodes(pg, xpath=".//div[@data-target='vk']")
   #shareOK <- html_nodes(pg, xpath=".//div[@data-target='ok']")
@@ -195,6 +202,7 @@ ReadFile <- function(filename) {
   
   articleBodyNode <- html_nodes(pg, xpath=".//div[@itemprop='articleBody']")
   
+  # Extract articles body
   plaintext <- html_nodes(articleBodyNode, xpath=".//p") %>% 
     html_text() %>% 
     paste0(collapse="") 
@@ -202,6 +210,7 @@ ReadFile <- function(filename) {
     plaintext <- NA
   }
   
+  # Extract links from articles body 
   plaintextLinks <- html_nodes(articleBodyNode, xpath=".//a") %>% 
     html_attr("href") %>% 
     unique() %>% 
@@ -210,6 +219,7 @@ ReadFile <- function(filename) {
     plaintextLinks <- NA
   }
   
+  # Extract links related to articles
   additionalLinks <- html_nodes(pg, xpath=".//section/div[@class='item']/div/..//a") %>% 
     html_attr("href") %>% 
     unique() %>% 
@@ -218,6 +228,7 @@ ReadFile <- function(filename) {
     additionalLinks <- NA
   }
   
+  # Extract image Description and Credits
   imageNodes <- html_nodes(pg, xpath=".//div[@class='b-topic__title-image']")
   imageDescription <- html_nodes(imageNodes, xpath="div//div[@class='b-label__caption']") %>% 
     html_text() %>% 
@@ -228,6 +239,7 @@ ReadFile <- function(filename) {
     unique() %>% 
     SetNAIfZeroLength() 
   
+  # Extract video Description and Credits
   if (is.na(imageDescription)&is.na(imageCredits)) {
     videoNodes <- html_nodes(pg, xpath=".//div[@class='b-video-box__info']")
     videoDescription <- html_nodes(videoNodes, xpath="div[@class='b-video-box__caption']") %>% 
@@ -243,10 +255,12 @@ ReadFile <- function(filename) {
     videoCredits <- NA
   }
   
+  # Extract articles url
   url <- html_nodes(pg, xpath=".//head/link[@rel='canonical']") %>% 
     html_attr("href") %>% 
     SetNAIfZeroLength()
   
+  # Extract authors
   authorSection <- html_nodes(pg, xpath=".//p[@class='b-topic__content__author']")
   authors <- html_nodes(authorSection, xpath="//span[@class='name']") %>% 
     html_text() %>% 
@@ -259,8 +273,7 @@ ReadFile <- function(filename) {
     authorLinks <- paste0(authorLinks, collapse = "|")
   }
   
-  #itemprop="datePublished"
-  #.//time[@class='g-date']
+  # Extract publish date and time
   datetimeString <- html_nodes(pg, xpath=".//div[@class='b-topic__info']/time[@class='g-date']") %>% 
     html_text() %>% 
     unique() %>% 
@@ -279,11 +292,9 @@ ReadFile <- function(filename) {
              metaTitle= metaTitle,
              metaType= metaType,
              metaDescription= metaDescription,
-             rubric= rubric,
              chapters = chapters,
              datetime = datetime,
              datetimeString = datetimeString,
-             title = title, 
              plaintext = plaintext, 
              authors = authors, 
              authorLinks = authorLinks,
@@ -299,7 +310,8 @@ ReadFile <- function(filename) {
 
 # Read and parse files in folder with provided number
 ReadFilesInFolder <- function(folderNumber) {
-  
+  timestamp()
+  # Get name of folder that have to be parsed
   folders <- list.files(downloadedArticlesFolder, full.names = FALSE, 
                         recursive = FALSE, pattern = "-")
   folderName <- folders[folderNumber]
@@ -307,6 +319,7 @@ ReadFilesInFolder <- function(folderNumber) {
   files <- list.files(currentFolder, full.names = TRUE, 
                       recursive = FALSE, pattern = "index")
   
+  # Split files in folder in 1000 chunks and parse them using ReadFile
   numberOfFiles <- length(files)
   print(numberOfFiles)
   groupSize <- 1000
@@ -318,6 +331,8 @@ ReadFilesInFolder <- function(folderNumber) {
     print(paste0(firstFileInGroup, "-", lastFileInGroup))
     dfList[[i]] <- map_df(files[firstFileInGroup:lastFileInGroup], ReadFile)
   }
+  
+  # combine rows in data frame and write down
   df <- bind_rows(dfList)
   write.csv(df, file.path(parsedArticlesFolder, paste0(folderName, ".csv")), 
             fileEncoding = "UTF-8")
@@ -327,6 +342,7 @@ ReadFilesInFolder <- function(folderNumber) {
 # Read all parsed csv and combine them in one.
 # Expect about 1.7Gb in combined file
 UnionData <- function() {
+  timestamp()
   files <- list.files(parsedArticlesFolder, full.names = TRUE, recursive = FALSE)
   dfList <- c()
   for (i in 1:length(files)) {
@@ -337,13 +353,14 @@ UnionData <- function() {
   df <- bind_rows(dfList)
   write.csv(df, file.path(parsedArticlesFolder, "untidy_articles_data.csv"), 
             fileEncoding = "UTF-8")
+  timestamp()
 }
 
 ## STEP 5. Prepare wget CMD files for parallel downloading social
 # Create CMD file.
 
 CreateWgetCMDFilesForSocial <- function() {
-  
+  timestamp()
   articlesLinks <- readLines(file.path(tempDataFolder, "articles.urls"))
   dir.create(warcFolder, showWarnings = FALSE)
   dir.create(warcFolderForFB, showWarnings = FALSE)
@@ -365,7 +382,7 @@ CreateWgetCMDFilesForSocial <- function() {
   
   for (i in 1:length(filesGroup)) {
     
-    # prepare folder name as 00001-10000, 10001-20000 etc
+    # Prepare folder name as 00001-10000, 10001-20000 etc
     firstFileInGroup <- filesGroup[i]
     lastFileInGroup <- min(firstFileInGroup + groupSize - 1, numberOfLinks)
     leftPartFolderName <- formatC(firstFileInGroup, width = digitNumber, 
@@ -383,8 +400,9 @@ CreateWgetCMDFilesForSocial <- function() {
     subFolderPathCom <- file.path(downloadedArticlesFolderForCom, subFolderName)
     dir.create(subFolderPathCom)
     
-    # encode and write articles.urls for each 10K folders that contains 10K articles urls
-    # for FB we do it in a bit different way because FB allows us to pass 
+    # Encode and write down articles.urls for each 10K folders that contains 
+    # 10K articles urls.
+    # For FB it has to be done in a bit different way because FB allows to pass 
     # up to 50 links as a request parameter.
     
     articlesLinksFB <- articlesLinks[firstFileInGroup:lastFileInGroup]
@@ -414,7 +432,7 @@ CreateWgetCMDFilesForSocial <- function() {
     writeLines(articlesLinksOK, file.path(subFolderPathOK, "articles.urls"))
     writeLines(articlesLinksCom, file.path(subFolderPathCom, "articles.urls"))
     
-    # add command line in CMD file as:
+    # Add command line in CMD file
     cmdCode <-paste0("START ..\\..\\wget --warc-file=warc\\", subFolderName," -i ", 
                      subFolderName, "\\", "articles.urls -P ", subFolderName, 
                      " --output-document=", subFolderName, "\\", "index")
@@ -436,13 +454,13 @@ CreateWgetCMDFilesForSocial <- function() {
   print(paste0("Run ", cmdFile, " to start downloading."))
   
   print("wget.exe should be placed in working directory.")
-  
+  timestamp()
 }
 
 ## Parse downloaded articles social
 ReadSocial <- function() {
-  
-  # read and parse all warc files in FB folder
+  timestamp()
+  # Read and parse all warc files in FB folder
   dfList <- list()
   dfN <- 0  
   warcs <- list.files(file.path(downloadedArticlesFolderForFB, "warc"), full.names = TRUE, 
@@ -474,7 +492,7 @@ ReadSocial <- function() {
   }
   dfFB <- bind_rows(dfList)
   
-  # read and parse all warc files in VK folder
+  # Read and parse all warc files in VK folder
   dfList <- list()
   dfN <- 0  
   warcs <- list.files(file.path(downloadedArticlesFolderForVK, "warc"), full.names = TRUE, 
@@ -497,7 +515,7 @@ ReadSocial <- function() {
   }
   dfVK <- bind_rows(dfList)
   
-  # read and parse all warc files in OK folder
+  # Read and parse all warc files in OK folder
   dfList <- list()
   dfN <- 0 
   warcs <- list.files(file.path(downloadedArticlesFolderForOK, "warc"), full.names = TRUE, 
@@ -520,7 +538,7 @@ ReadSocial <- function() {
   }
   dfOK <- bind_rows(dfList)
   
-  # read and parse all warc files in Com folder
+  # Read and parse all warc files in Com folder
   dfList <- list()
   dfN <- 0  
   warcs <- list.files(file.path(downloadedArticlesFolderForCom, "warc"), full.names = TRUE, 
@@ -554,7 +572,7 @@ ReadSocial <- function() {
   dfCom <- bind_rows(dfList)
   dfCom <- dfCom[dfCom$link!="",]
   
-  # combine dfs and reshape them into "link", "FB", "VK", "OK", "Com"
+  # Combine dfs and reshape them into "link", "FB", "VK", "OK", "Com"
   dfList <- list()
   dfList[[1]] <- dfFB
   dfList[[2]] <- dfVK
@@ -566,4 +584,5 @@ ReadSocial <- function() {
   
   write.csv(dfCasted, file.path(parsedArticlesFolder, "social_articles.csv"), 
             fileEncoding = "UTF-8")
+  timestamp()
 }
