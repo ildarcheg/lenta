@@ -1,3 +1,4 @@
+# Load required packages
 require(lubridate)
 require(dplyr)
 require(tidyr)
@@ -60,7 +61,6 @@ TityData <- function() {
   # and subrubric value "Украина"
   dtD <- dtD %>% 
     mutate(chapters = gsub('\"|\\[|\\]| |chapters:', "", chapters)) %>%
-    select(-rubric) %>%
     mutate(chaptersFormatted = as.character(sapply(chapters, SplitChapters))) %>%
     separate(col = "chaptersFormatted", into = c("rubric", "subrubric")
              , sep = "\\|", extra = "drop", fill = "right", remove = FALSE) %>%
@@ -130,12 +130,12 @@ TityData <- function() {
   
   # SECTION 5
   print(paste0("5 ",Sys.time()))  
-  # Remove rows with missed datetime values, replace title with metaTitle,
+  # Remove rows with missed datetime values, rename metaTitle to title,
   # remove columns that we do not need anymore  
   dtD <- dtD %>%
     as.data.table() %>%
     na.omit(cols="datetime") %>%
-    select(-filename, -title, -metaType, -datetimeString, -datetimeNew) %>%
+    select(-filename, -metaType, -datetimeString, -datetimeNew) %>%
     rename(title = metaTitle) %>%
     select(url, urlKey, datetime, rubric, subrubric, title, metaDescription, plaintext, 
            authorLinks, additionalLinks, plaintextLinks, imageDescription, imageCreditsPerson,
