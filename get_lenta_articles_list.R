@@ -94,8 +94,8 @@ GetNewsListForPeriod <- function() {
 
 ## STEP 2. Prepare wget CMD files for parallel downloading
 # Create CMD file.
-# Downloading process takes about 3 hours. Expect about 70GB in html files
-# and 12GB in compressed WARC files
+# Downloading process for 400K pages takes about 3 hours. Expect about 70GB 
+# in html files and 12GB in compressed WARC files
 CreateWgetCMDFiles <- function() {
   timestamp()
   articlesLinks <- readLines(file.path(tempDataFolder, "articles.urls"))
@@ -149,11 +149,11 @@ CreateWgetCMDFiles <- function() {
 # Parsing process takes about 1 hour. Expect about 1.7Gb in parsed files
 CreateCMDForParsing <- function() {
   timestamp()
-  # get list of folders that contain downloaded articles
+  # Get list of folders that contain downloaded articles
   folders <- list.files(downloadedArticlesFolder, full.names = FALSE, 
                         recursive = FALSE, pattern = "-")
   
-  # create CMD contains commands to run parse.R script with specified folder number
+  # Create CMD contains commands to run parse.R script with specified folder number
   nn <- 1:length(folders)
   cmdCodeAll <- paste0("start C:/R/R-3.4.0/bin/Rscript.exe ", 
                        file.path(getwd(), "parse.R "), nn)
@@ -193,12 +193,6 @@ ReadFile <- function(filename) {
   } else {
     chapters <- scriptContent[grep("chapters: ", scriptContent)] %>% unique()
   }
-  
-  #shareFB <- html_nodes(pg, xpath=".//div[@data-target='fb']")
-  #shareVK <- html_nodes(pg, xpath=".//div[@data-target='vk']")
-  #shareOK <- html_nodes(pg, xpath=".//div[@data-target='ok']")
-  #shareTW <- html_nodes(pg, xpath=".//div[@data-target='tw']")
-  #shareLJ <- html_nodes(pg, xpath=".//div[@data-target='LJ']")
   
   articleBodyNode <- html_nodes(pg, xpath=".//div[@itemprop='articleBody']")
   
