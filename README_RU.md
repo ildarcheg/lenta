@@ -1,13 +1,21 @@
-# Analyze This. Lenta.ru (part 1)
-### What
-Lenta.ru is a Moscow-based online newspaper in Russian language, owned by Rambler Media Group which belongs to Prof-Media. It is one of the most popular Russian language online resources with over 600 thousand visitors daily. [Wikipedia](https://en.wikipedia.org/wiki/Lenta.ru)
+# Анализируй это. Lenta.ru (часть 1)
+### What, How, Why
 
+What - анализ статей новостного ресурса Lenta.ru за последние 18 лет (с 1 сентября 1999 года). How - весь процесс выполняется средствами языка R (с привлечением программы MySterm от Yandex на отдельном участке). Why... На мой взгляд, применяя вопросы "What, How and Why" в отношении какой-либо задачи, самое важное все-таки будет "Why". Именно ответ на этот вопрос определит, чего вы в итоге добьетесь и как вы это сделаете. В моем случае, коротким ответом на вопрос "почему" будет "получение опыта" в Big Data. Более развернутым же объяснением будет "выполнение какого-либо реального задания, в рамках которого я смогу применить навыки, полученные во время обучения, а так же получить результат, который я бы смог показывать в качестве подтверждения своих умений".  
+
+> Мой бэкграунд - 15 лет в качестве программиста 1С и первые 5 курсов в специализации [Data Science](https://www.coursera.org/specializations/jhu-data-science) от Coursera.org, которые в основном давали базу и работу с R. Ну еще можно добавить опыт написания небольших процедур на Basic, Pascal и Java 17-18 лет назад. Несмотря на то, что в текущей профессии 80лвл почти достигнут, джоб-оффер из Гугла еще никто не прислал. Поэтому было принято решение повестить на мейстрим и пощупать бигдату, так как порог вхождения относительно ниже в сравнении той же Java. 
+
+Конечно, определившись внутри себя, что мне нужны практика и портфолио, стоило бы схватить пару датасетов, коих сейчас море, и анализировать, анализировать, анализировать... Но прикинув в голове свои скилы по непосредственному анализу и вспомнив, что анализ это только 20-30% времени и остальное это поиск-сбор-очиска-подготовка данных, решил взяться за второе. Да и хотелось что-то особенное, возможно даже интересное, в отличии от анализа проданных в США авиабилетов за последние 30 лет или статистику арестов.
+
+В качестве объекта исследования была выбрана [Lenta.ru](https://lenta.ru). От части, потому что я являюсь ее давним читателем, хоть и регулярно плююсь от того шлака, который проскакивает мимо редакторов (если таковые там вообще имеются). От части, потому что она показалась относительно легким для data mining. Однако если быть честным, то подходя к выбору объекта я практически не учитывал вопросы "а что я буду с этой датой делать" и "какие вопросы буду задавать". И связано это с тем, что на текущий момент я более-менее освоил только Getting and Cleaning Data и мои знания в части анализа очень скудны. Я конечно представлял себе, что как минимум могу ответить на вопрос "как изменилась среднедневное количество публикуемых новостей за последние 5-10 лет", но дальше этого я не задумывался.  
+
+И так, эта статья будет посвящена добыванию и очистке данных, которые будут пригодны для анализа Lenta.ru. 
 
 ### Grabbing
-First of all I had to decide how to grab a content of the newspaper. Google told that the optimal way for that would be [rvest](https://cran.r-project.org/web/packages/rvest/rvest.pdf) package. This package allows to get plain text content of the page and extract content from specific field with xPath.
+Первым делом мне необходимо было определиться, как сграббить и распарсить содержимое страниц ресурса. Google подсказал, что оптимальным для этого будет использование пакета [rvest](https://cran.r-project.org/web/packages/rvest/rvest.pdf), который одновременно позволяет получить текст страницы по ее адресу и при помощи xPath выдернуть содержимое нужных мне полей. Конечно, продвинувшись дальше, мне пришлось разбить эту задачу на две - получение страниц и непосредственный парсинг, но это я понял позже, а пока первым шагом было получение списка ссылок на сами статьи.
 
-The structure of the website allows us to get all articles for specific day using this type of link `https://lenta.ru/YEAR/MONTH/DAY/` (as example https://lenta.ru/2017/07/01/).  
-For grabbing and parsing purposes I used following packages:
+После недолгого изучения, на сайте был обнаружен раздел "Архив", который при помощи простого скрипта переадресовывал меня на страницу, содержащую ссылки все новости за определенную дату и путь к этой странице выглядел как https://lenta.ru/2017/07/01/ или https://lenta.ru/2017/03/09/. Оставалось только пройтись по всем этим страницам и получить эти самые новостные ссылки. 
+Для этих целей (граббинга и парсинга) так или иначе использовал следующие пакеты:
 ```R
 require(lubridate)
 require(rvest)
@@ -21,7 +29,7 @@ require(jsonlite)
 require(reshape2)
 ```
 
-Simple code that allows me to get the links to all archive pages for the last 8 years:
+Не хитрый код, который позволил получить все ссылки на все статьи за последние 8 лет:
 ```R
 articlesStartDate <- as.Date("2010-01-01")
 articlesEndDate <- as.Date("2017-06-30")
@@ -56,7 +64,7 @@ GetNewsListForPeriod <- function() {
 }
 ```
 
-I a result I got `archivePagesLinks` with links to all archive pages from `2010-01-01` to `2017-06-30`:
+Сгенерировав массив дат с `2010-01-01` по `2017-06-30` и преобразовав `archivePagesLinks`, я получил ссылки на все так называемые "архивные страницы":
 ```
 > head(archivePagesLinks)
 [1] "https://lenta.ru/2010/01/01/"
@@ -69,7 +77,7 @@ I a result I got `archivePagesLinks` with links to all archive pages from `2010-
 [1] 2738
 ```
 
-Using `read_html` in a loop I got a content of all archive pages and using `html_nodes` and `html_attr` got links to all the articles (about `400К` at that time):
+При помощи метода `read_html` я в цикле "скачал" содержимое страниц в буфер, а при помощи методов `html_nodes` и `html_attr` получил непосредственно ссылки на статьи, коих вышло почти `400К`:
 ```
 > head(articlesLinks)
 [1] "https://lenta.ru/news/2009/12/31/kids/"     
@@ -82,31 +90,33 @@ Using `read_html` in a loop I got a content of all archive pages and using `html
 [1] 379862
 ```
 
-Once I finished this step I realized one problem. The code above took about `40 min` to process `2738` links and it was easy to approximate the time I need to process `379862`. About `5550 minutes` or `92.5 hours`... This is beyond awkward. I decided to try `readLines {base}` and `download.file {utils}` and got same result. Tried `htmlParse {XML}` (similat to `read_html`), got the same. Tried `getURL {RCurl}`, same. Dead end.
+После получения первых результатов я осознал проблему. Код, приведенный выше, выполнялся примерно `40 мин`. С учетом того, что за это время было обработано `2738` ссылок, можно посчитать, что для обработки `379862` ссылок уйдет `5550` минут или `92 с половиной часа`, что согласитесь, ни в какие ворота... Встроенные методы `readLines {base}` и `download.file {utils}`, которые позволяли просто получить текст, давали схожие результаты. Метод `htmlParse {XML}`, который позволял аналогично `read_html` скачать и продолжить парсинг содержимого, также ситуацию не улучшил. Тот же результат с использованием `getURL {RCurl}`. Тупик.
 
 ![](images/dead_end.jpg)
 
-Looking for solution of the problem I decided to try the tools that can work in parallel, because at the time of the performing CPU, RAM and Network were not busy. Google advised to check out `parallel-package {parallel}`. After few hours of testing I realized that there is no profit at all. Someone in Google told that it does make a sense to parallel calculation and data manipulation, but the work with HDD or network will be done within one process one by one (I might be wotk in understanding of the situation). Anyway, in case it works the improvements will be related to number of the cores and even if I had 8 cores (but I didn't) I had to wait about `690 minutes`.
+В поисках решения проблемы, я и гугл решили посмотреть в сторону "параллельного" исполнения моих запросов, так в момент работы кода ни сеть, ни память, ни процессор не были загружены. Гугл подсказал копнуть в сторону `parallel-package {parallel}`. Несколько часов изучения и тестов показали, что профита с запуском даже в двух "параллельных" потоках почему нет. Обрывочные сведения в гугле рассказали, что с помощью этого пакета можно распараллелить какие-нибудь вычисления или манипуляции с данными, но при работе с диском или внешним источником все запросы выполняются в рамках одного процесса и выстраиваются в очередь (могу ошибаться в понимании ситуации). Да и как понял, даже если бы тема и взлетела, ожидать увеличение производительности стоило только кратно имеющимся ядрам, т.е. даже при наличии 8 штук (которых у меня и не было) и реальной параллельности, курить мне предстояло примерно 690 минут. 
 
-My next idea was to run few R processes, but didn't find in Google "how to run code in new R session". Thought about running R script in command line but at that time my experience with CMD was realy poor. Dead end again.
+Следующей идеей было запустить параллельно несколько процессов R, в которых бы обрабатывалась своя часть большого списка ссылок. Однако гугл на вопрос "как из сессии R запустить несколько новых сессий R" ничего не сказал. Подумал еще над вариантом запуска R-скрипта через командную строку, но опыт работы с CMD были на уровне "набери dir и получишь список файлов в папке". Я снова оказался в тупике. 
 
-At that time I decided to ask the community and I alrready knew [stackoverflow](https://stackoverflow.com) was the best place for that. I described the [problem](https://stackoverflow.com/questions/39180106/i-have-to-grab-plantext-from-over-290k-webpages-is-there-a-way-to-improve-the-s) and very soon I got a reply from [Bob Rudis](https://rud.is/). I tried his code and it worked. This one problem - I have no idea how it worked. It was a first time I heard of `wget`, I didn't know what to do with `WARC` and why to pass function to function as an argument. But `when you look long into a code, the code looks into you` and after breaking the code into peaces and run it one by one you have a change to understand it (somethimes). Google help me again with understanding `wget`. 
+Когда гугл перестал мне выдавать новые результаты, я с чистой совестью решил обратиться за помощью к залу. Так как гугл довольно часто выдавал [stackoverflow](https://stackoverflow.com), я решил попытать счастье именно там. Имея опыт общения на тематических форумах и зная реакцию на вопросы новичков, попытался максимально четко и ясно изложить [проблему](https://stackoverflow.com/questions/39180106/i-have-to-grab-plantext-from-over-290k-webpages-is-there-a-way-to-improve-the-s). И о чудо, спустя какие несколько часов я получил от [Bob Rudis](https://rud.is/) более чем развернутый ответ, который после подстановки в мой код, практически полностью решал мою задачу. Правда с оговоркой: я совершенно не понимал как он работает. Я первый раз слышал про `wget`, не понимал, что в коде делают с `WARC` и зачем в метод передают функцию (повторюсь, семинариев не кончал и в моем предыдущем языке таки финты не использовались). Однако если долго-долго смотреть на код, то просветление все таки приходит. А добавив попытки выполнять его по кускам, разбирая функцию за функцией, можно добиться определенных результатов. Ну а с `wget` мне помог справиться все тот же гугл. 
 
-The final solution of the problem with help of `wget` was:
+> Несмотря на то, что вся разработка велась в среде macOS, необходимость использования wget (а в дальнешйем и MyStem, которая заработала только по виндой), пришлось сузить среду исполнения до Windows. Я имею представление о том, что curl может делать что-то подобное, и возможно я таки выделю время и попробую реализовать с его помощью, но пока я решил не останавливаться на месте и идти дальше. 
+
+В итоге суть решения свелась к следующему - предварительно подготовленный файл, содержащий ссылки на статьи, подсовывался команде `wget`:
 ```
   wget --warc-file=lenta -i lenta.urls
 ```
 
-The code itself looks like:
+Непосредственно код выполнения выглядел так:
 ```R
   system("wget --warc-file=lenta -i lenta.urls", intern = FALSE)
 ```
 
-At the end of performing I got numeroues of files with html content of the pages. Also I got compressed `WARC` file with logs and pages content. The idea of [Bob Rudis](https://rud.is/) was to parse `WARC`. Exactly what I was looking for plus I kept all pages localy.
+После выполнения, я получал кучу файлов (по одному на каждую переданную ссылку) с html содержимым веб-страниц. Также в моем распоряжении был запакованный `WARC`, который содержал в себе лог общения с ресурсом, а так же то самое содержимое веб-страниц. Именно `WARC` и предлагал парсить [Bob Rudis](https://rud.is/). То что нужно. Причем у меня оставилсь копии прочитанных страниц, что делало возможно их повторное чтение.
 
-First performance measurement shown that `2000` links were downloaded for `10 minutes`, that gives roughly `1890 minutes` - almost 3 times faster but still not enought. Decided to step back and try with `parallel-package {parallel}` but didn't find any profits.
+Первые замеры производительности показали, что для закачки `2000` ссылок было потрачено `10 минут`, методом экстраполяции (давно хотел использовать это слово) получал `1890 минут` для всех статей - "олмост три таймс фастер бат нот энаф" - почти в три раза быстрее, но все равно недостаточно. Вернувшись на пару шагов назад и протестив новый механизм с учетом `parallel-package {parallel}`, понял, что и здесь профита не светит.
 
-Finaly I decide to do knight's move. Run a few really parallel processes. After spending few days playing with CMD I was ready to run parallel processes out of R. This code helped me to prepare bash script that runs a bunch of `wget` processes simultaneously:
+Оставался ход конем. Запуск нескольких по-настоящему параллельных процессов. С учетом того, что от "reproducible research" (принцип, о котором говорили на курсах) шаг в сторону я уже сделал (использовав внешнюю программу wget и фактически привязав выполнение к среде Windows), я решил сделать еще один шаг и снова вернуться к идее запуска параллельных процессов, однако уже вне R. Как заставить CMD файл выполнять несколько последовательных команд, не дожидаясь выполнения предыдущей (читай параллельно), рассказал все тот же [stackoverflow](https://stackoverflow.com). Оказалось, что замечательная команда `START` позволяет запустить команду на выполнение в отдельном окне. Вооружившись этим знанием, разродился следующим кодом:
 ```R
 ## STEP 2. Prepare wget CMD files for parallel downloading
 # Create CMD file.
@@ -161,7 +171,7 @@ CreateWgetCMDFiles <- function() {
 }
 ```
 
-This code breaks links array into chunks by 10000 (in my case it was about 38 chunks), creates folders like `00001-10000`, `10001-20000` etc., puts articles.urls (that contains 10000 links) in folders. The final bash script:
+Этот код разбивает массив ссылок на блоки по 10000 штук (в моем случае получилось 38 блоков). Для каждого блока в цикле создается папка вида  `00001-10000`, `10001-20000` и т.д, в которую складывается свой собственный файл "articles.urls" (со своим 10-тысячным набором ссылок) и туда же попадут скачанные файлы. В этом же цикле собирается CMD файл, который должен одновременно запустить 38 окон:
 ```
 START ..\wget --warc-file=warc\000001-010000 -i 000001-010000\articles.urls -P 000001-010000
 START ..\wget --warc-file=warc\010001-020000 -i 010001-020000\articles.urls -P 010001-020000
@@ -172,13 +182,13 @@ START ..\wget --warc-file=warc\360001-370000 -i 360001-370000\articles.urls -P 3
 START ..\wget --warc-file=warc\370001-379862 -i 370001-379862\articles.urls -P 370001-379862
 ```
 
-This script runs 38 `wget` processes (load on `3.5GHz Xeon E-1240 v5, 32Gb, SSD, Windows Server 2012`):
+Запуск запуск сформированного CMD файла запускает ожидаемые 38 окон с командой `wget` и дает следующую загрузку компьютера со следующими характеристиками `3.5GHz Xeon E-1240 v5, 32Gb, SSD, Windows Server 2012`
 
 ![Загрузка компьютера в момент одновременной закачки страниц](images/download_performance.jpg)
 
-Performance time was about `180 minutes` or `3 hours`, `10 times` faster than `wget` и `30 times` faster than `read_html {rvest}`.
+Итоговое время `180 минут` или `3 часа`. "Костыльный" параллелизм дал почти `10-кратный` выигрыш по сравнению с однопоточным выполнением `wget` и `30-кратный` выигрыш относительно изначального варианта использования `read_html {rvest}`. Это была первая маленькая победа и подобный "костыльный" подход мне пришлось применить потом еще несколько раз.
 
-The result of the script:
+Результатом выполнения на жестком диске был представлен следующим:
 ```
 > indexFiles <- list.files(downloadedArticlesFolder, full.names = TRUE, recursive = TRUE, pattern = "index")
 > length(indexFiles)
@@ -192,11 +202,11 @@ The result of the script:
 [1] 18770.4
 ```
 
-`379703` downloaded pages (`66713.61MB`) and `38` compressed `WARC` (`18770.40MB`). I realized that I lost about `159` pages and I knew that have to check out `WARC` in order to find the problem, but decided not to do.
+Что означает `379703` скачанных веб-страниц общим размером `66713.61MB` и `38` сжатых `WARC`-файлы общим размером `18770.40MB`. Нехитрое вычисление показало, что я "потерял" `159` страниц. Возможно их судьбу можно узнать распарсив `WARC`-файлы по примеру от [Bob Rudis](https://rud.is/), но я решил списать их на погрешность и пойти своим путем, распарсивая непосредственно `379703` файлов.
 
 ### Parsing
 
-Once I decided what information woulb be interesting for me I prepared this script:
+Прежде чем что-то выдергивать со скачанной страницы, мне предстояло определить что именно выдергивать, какая именно информация мне может быть интересна. После долго изучения содержимого страниц, подготовил следующий код:
 ```R
 # Parse srecific file
 # Parse srecific file
@@ -338,7 +348,21 @@ ReadFile <- function(filename) {
 }
 ```
 
-This code allowed me to parse files in 1 folder (of 38):
+Для начала заголовок. Изначально я получал из `title` что-то вида `Швеция признана лучшей страной мира для иммигрантов: Общество: Мир: Lenta.ru`, в надежде разбить заголовок на непосредственный заголове и на рубрику с подрубрикой. Однако потом решил под подстраховки подтянуть заголовок в чистом виде из метаданных страницы.
+
+Дату и время я получаю из `<time class="g-date" datetime="2017-07-10T12:35:00Z" itemprop="datePublished" pubdate=""> 15:35, 10 июля 2017</time>`, причем для подстраховки решил получить не только `2017-07-10T12:35:00Z`, но и текстовое представление `15:35, 10 июля 2017` и как оказалось не зря. Это текстовое представление позволило получать время статьи для случаев, когда `time[@class='g-date']` по какой-то причине на странице отсутствовал.
+
+Авторство в статьях отмечается крайне редко, однако я все равно решил выдернуть эту информацию, на всякий случай. Также мне показалось интересным ссылки, которые появлялись в текстах самих статей и под ними в разделе "Ссылки по теме". На правильный парсинг информации о картинках и видео в начале статьи потратил чуть больше времени, чем хотелось бы, но тоже на всякий случай. 
+
+Для получения рубрики и подрубрики (изначально хотел выдергивать из заголовка) я решил подстраховаться и сохранить строку `chapters: ["Мир","Общество","lenta.ru:_Мир:_Общество:_Швеция_признана_лучшей_страной_мира_для_иммигрантов"], // Chapters страницы`, показалось, что и нее выдернуть "Мир" и "Общество" будет чуть легче, чем из заголовка.
+
+Особый интерес у меня вызвало количество расшариваний, количество комментариев к статье и конечно сами комментарии (словарное содержимое, временная активность), так как именно это было единственной информацией о том, как читатели реагировали на статью. Но именно самое интересное у меня и не получилось. Счетчики количества шар и камменнтов устанавливаются скриптом, который выполняетя после загрузки страницы. А весь мой суперхитрый код выкачивал страницу до этого момента, оставляя соответствующие поля пустыми. Комметарии также подгружаются скриптом, кроме того они отключаются для статей спустя какое-то время и получить их не представляется возможным. Но я еще работаю на этим вопросом, так как все-таки хочется увидеть зависимость наличия слов Украина/Путин/Кандолиза и количества срача в камментах.
+
+> На самом деле, благодаря подсказке бывшего коллеги, у меня таки получилось добраться до этой инфы, но об этом будет ниже.
+
+Вот в принципе и вся информация, которую я посчитал полезной.
+
+Следущий код позволил мне запустить парсинг фалов, находящейся в первой папке (из 38):
 ```R
 folderNumber <- 1
 # Read and parse files in folder with provided number
@@ -371,11 +395,12 @@ ReadFilesInFolder <- function(folderNumber) {
             fileEncoding = "UTF-8")
 }
 ```
-Getting `00001-10000` folder content, breaking into chunks by 1000, I run `ReadFile` for each chunk.
 
-Performance measurement shown that it takes about `8 minutes` for `10000` articles and `300 minutes` or `5 hours` for all.
+Получив адрес папки вида `00001-10000` и ее содержимое, я разбивал массив файлов на блоки по `1000` и в цикле при помощи `map_df` запускал свою функцию `ReadFile` для каждого такого блока.
 
-My second knight's move and the code that prepares bash script for parallel parsing:
+Замеры показали, что для обработки `10000` статей, требуется примерно `8 минут` (причем `95%` времени занимал метод `read_html`). Все той же экстраполяцией получил `300 минут` или `5 часов`.
+
+И вот обещанный второй ход конем. Запуск понастоящему параллельных сессий R (благо опыт общения с CMD уже имелся). Поэтому при помощи этого скрипта, я получил необходимый CMD файл:
 ```R
 ## STEP 3. Parse downloaded articles
 # Create CMD file for parallel articles parsing.
@@ -398,7 +423,7 @@ CreateCMDForParsing <- function() {
 }
 ```
 
-Like:
+Вида:
 ```
 start C:/R/R-3.4.0/bin/Rscript.exe C:/Users/ildar/lenta/parse.R 1
 start C:/R/R-3.4.0/bin/Rscript.exe C:/Users/ildar/lenta/parse.R 2
@@ -409,7 +434,7 @@ start C:/R/R-3.4.0/bin/Rscript.exe C:/Users/ildar/lenta/parse.R 37
 start C:/R/R-3.4.0/bin/Rscript.exe C:/Users/ildar/lenta/parse.R 38
 ```
 
-The bash script above run next R script:
+Который в свою очередь запускал на выполнение 38 скриптов:
 ```R
 args <- commandArgs(TRUE)
 n <- as.integer(args[1])
@@ -429,11 +454,11 @@ source("get_lenta_articles_list.R")
 ReadFilesInFolder(n)
 ```
 
-![CPU Load](images/parse_performance.jpg)
+![Загрузка компьютера в момент одновременного парсинга страниц](images/parse_performance.jpg)
 
-I got `100%` load and `30 minutes`. One more 10 times profit.
+Подобное распараллеливание, позволило `100%` загрузить сервер и выполнить поставленную задачу за `30 мин`. Очередной `10-кратный` выигрыш.
 
-And final step of the pasring stage was to combine 38 files:
+Остается только выполнить скрипт, который объединит 38 только что созданных файлов:
 ```R
 ## STEP 4. Prepare combined articles data
 # Read all parsed csv and combine them in one.
@@ -454,13 +479,13 @@ UnionData <- function() {
 }
 ```
 
-`1.739MB` of unclean and untidy data:
+И в итоге у нас на диске `1.739MB` неочищеной и неприведенной даты:
 ```
 > file.size(file.path(parsedArticlesFolder, "untidy_articles_data.csv"))/1024/1024
 [1] 1739.047
 ```
 
-What inside?
+Что же внутри?
 ```
 > str(dfM, vec.len = 1)
 'data.frame':   379746 obs. of  21 variables:
@@ -487,16 +512,16 @@ What inside?
  $ videoCredits    : chr  NA ...
 ```
 
-Parsing is done. Only one step left before we go to clean and tidy stage.
+Парсинг завершен. Осталось привести эту дату к состоянию, пригодному для анализа. Но перед этим добавим обещанный кусок про камменты и репосты.
 
 ### SOCIAL MEDIA
 
-Lets gather information about how people react to each article. With help of Developer Tools in Google Chrome I found out this request:
+На самом деле, этот шаг был выполнен практически в конце первой части моего исследования (когда я почти получил пригодную для анализа дату). Если вы помните, веб-страница скачивалась без данных о комментариях и реакций соцсетей, так как эта информация заполнялась скриптами динамически. После подсказки, я решил проверить что показывает инспектор в Google Chrome в момент загрузки страницы и в разделе Network нашел следующее:
 ```
 https://graph.facebook.com/?id=https%3A%2F%2Flenta.ru%2Fnews%2F2017%2F08%2F10%2Fudostov%2F
 ```
 
-The answer was:
+И в качестве ответа там было:
 ```
 {
    "share": {
@@ -514,9 +539,9 @@ The answer was:
 }
 ```
 
-Same request were found for VK, Odnoklassniki (social networks popular in Russia) and Rambler.
+Схожие запросы были обнаружены и для Вконтакта, Одноклассников и Рамблера, где хранились данные о количестве комментариев к каждой статье (сами комментарии мне получить так и не удалось). Как оказалось, достаточно было выполнить подобные запросы для каждой из статей. Так как количество запросов ожидалось `Количество статей Х 4`, то решил сразу воспользовать проверенным проверенным методом "параллелизации". 
 
-The code that prepare 4 CMD files, that run parallel requests to social networks above:
+Код, который подготавливает 4 CMD файла, которые которые запускают параллельное выполение запосов к социальным сетям:
 ```R
 ## STEP 5. Prepare wget CMD files for parallel downloading social
 # Create CMD file.
@@ -619,7 +644,9 @@ CreateWgetCMDFilesForSocial <- function() {
 }
 ```
 
-Parsing was done with same technics:
+Как и в предыдущих примерах, массив ссылок разбивается на куски по 10К, преобразуются в строку запроса (к каждой соцсети отдельно), складывается в соответствующие папки. После запуска командного файла и выполнения всех запросов, в соответствующих папках окажутся WARC файлы, содержащие ответы сервисов. Отдельно пришлось повозиться с фейсбуком, так как он не обрабатывал больше 100 запросов за раз. Чтобы увеличить лимит, пришлось зарегистрироваться как ФБ разработчик, зарегистрировать собственное приложение, получить токен и слать запросы уже с его указанием. А так как ФБ мог обрабатывать до 50 значений параметра в одном запросе, то строки запроса для него готовились чуть по другому.
+
+Парсинг ответов был уже делом техники:
 ```R
 ## Parse downloaded articles social
 ReadSocial <- function() {
@@ -752,11 +779,12 @@ ReadSocial <- function() {
 }
 ```
 
-Grabiing is done.
+На этом сбор данных окончен. Приступаем к обработке.
+
 
 ### Cleaning
 
-As you could above I have to deal with `379746 obs. of  21 variables and size of 1.739MB` and it is not too fast when you use basic packeges. Google (one more time) advised to try `fread {data.table}`. Feel the differences:
+Как видно из предыдущего текста, работать пришлось с датой `379746 obs. of  21 variables and size of 1.739MB`, чтение которой было делом не быстрым. Однако гугл и стаковерфлоу довольно быстро подсказали выход в качестве `fread {data.table}`. Разница:
 ```
 > system.time(dfM <- read.csv(untidyDataFile, stringsAsFactors = FALSE, encoding = "UTF-8"))
 пользователь      система       прошло 
@@ -767,7 +795,7 @@ Read 379746 rows and 21 (of 21) columns from 1.698 GB file in 00:00:18
        17.67         0.54        18.22 
 ```
 
-This code I use to clean and tidy my data:
+Ну а дальше предстояло проверить каждую колонку таблицы, есть ли в ней что-нибудь вменяемое или там только `NA`. И если что-то есть - привести это что-то к читаемому виду (на этом этапе мне пришлось несколько раз подпиливать Parsing). В итоге код, который приводил дату в вид, готовый для анализа стал таким:
 ```R
 # Load required packages
 require(lubridate)
@@ -1056,7 +1084,8 @@ TityData <- function() {
   write.csv(dtG, file.path(tidyArticlesFolder, "tidy_articles_data.csv"), fileEncoding = "UTF-8")
 }
 ```
-I add `time stamp` as `print(paste0("1 ",Sys.time()))` because the code was not fast. Log from my laptop `2.7GHz i5, 16Gb Ram, SSD, macOS 10.12, R version 3.4.0`:
+
+Так как внезапно столкнулся с длительным исполнением кода, добавил секции и `time stamp` в виде `print(paste0("1 ",Sys.time()))`. Результаты на собственном макбуке `2.7GHz i5, 16Gb Ram, SSD, macOS 10.12, R version 3.4.0`:
 ```
 [1] "1 2017-07-21 16:36:59"
 [1] "2 2017-07-21 16:37:13"
@@ -1070,7 +1099,7 @@ I add `time stamp` as `print(paste0("1 ",Sys.time()))` because the code was not 
 [1] "10 2017-07-21 19:01:04"
 ```
 
-Log from real server `3.5GHz Xeon E-1240 v5, 32Gb, SSD, Windows Server 2012`:
+Результаты на сервере `3.5GHz Xeon E-1240 v5, 32Gb, SSD, Windows Server 2012`:
 ```
 [1] "1 2017-07-21 14:36:44"
 [1] "2 2017-07-21 14:37:08"
@@ -1084,11 +1113,11 @@ Log from real server `3.5GHz Xeon E-1240 v5, 32Gb, SSD, Windows Server 2012`:
 [1] "10 2017-07-21 19:35:18"
 ```
 
-I believe the commets I left are enought to undestanding the code.
+Внезапно (а может и ожидаемо), выполнение функции `UpdateAdditionalLinksDomain` (которая выдергивает домен и доменную зону для формирования ключа источника) стало самым времязатратным местом. Причем все упиралось в метод `tldextract {tldextract}`. На самом деле уделять время на дополнительную оптимизацию я не стал и если кто-нибудь сходу тыкнет пальцем куда копнуть - обязательно выделю время и попробую оптимизировать.
 
-I realized that `UpdateAdditionalLinksDomain` and `tldextract {tldextract}` (where I parse links) is a bottleneck. I decided not to spend additional time for optimization (maybe in a future).
+> Вопрос залу - почему казалось бы заведомо более мощный сервер выполняет одинаковый код в 2 раза медленее? Секция 7 выполняется 4 часа против 2 часов на макбуке.
 
-Result:
+В целом по камментам думаю понятно, какие преобразования происходят над данными. Результат:
 ```
 > str(dfM, vec.len = 1)
 'data.frame':   379746 obs. of  21 variables:
@@ -1118,20 +1147,19 @@ Classes ‘data.table’ and 'data.frame':  376913 obs. of  19 variables:
  $ stemMetaDescription: chr  "президент рф дмитрий медведев назначил нового уполномоченного правам ребенка россии вместо алексея голованя про"| __truncated__ ...
  $ stemPlaintext      : chr  "президент рф дмитрий медведев назначил нового уполномоченного правам ребенка россии вместо алексея голованя про"| __truncated__ ...
 ```
-
-Result:
+Все готово для финального шага.
+И да, файл потолстел до:
 ```
 > file.size(file.path(tidyArticlesFolder, "tidy_articles_data.csv"))/1024/1024
 [1] 2741.01
 ```
 
 ### REPRODUCIBLE RESEARCH
+Однако финальный шаг (а именно STEMMING) придется немного отложить, так как необходимо внести кое-какие поправки в исследование. В какой-то момент (ближе к концу шага STEMMING) решил проверить насколько мой ресерч является репродюсибл. Для этого в качестве начально даты указал `1 сентября 1999 года` и повторил все шаги но уже с почти вдвое большей выборкой.
 
-Before final step I decided to check if my research is reproducible and repeat from the beginning with `September 1st, 1999`.
+> Начиная с этого момента все манипуляции будут с данным 700К статей.
 
-> I am dealing with 700К articles from now.
-
-`2 hours` to download and extract `700К links`:
+Парсинг архивных страниц занял `2 часа` и его итогом стал список из `700К ссылок`:
 ```R
 > head(articlesLinks)
 [1] "https://lenta.ru/news/1999/08/31/stancia_mir/"
@@ -1144,7 +1172,7 @@ Before final step I decided to check if my research is reproducible and repeat f
 [1] 702246
 ```
 
-`4.5 часа` grab 700000 articles for the last 18 years in 70 cocurrent processes:
+Граббинг 700000 статей (за неполные 18 лет) в виде 70 одновременных процессов закончился за `4.5 часа`. Результат:
 ```
 > indexFiles <- list.files(downloadedArticlesFolder, full.names = TRUE, recursive = TRUE, pattern = "index")
 > length(indexFiles)
@@ -1153,13 +1181,13 @@ Before final step I decided to check if my research is reproducible and repeat f
 [1] 123682.1
 ```
 
-`1 hour` to parse `123GB` in 70 parallel processes. The result is `2.831MB` of unclean and untidy data:
+Парсинг `123GB` скачанных веб-страниц в виде тех же 70 процессов занял `60 мин` (при полной загрузке сервера). Результат `2.831MB` неочищеной и неприведенной даты:
 ```
 > file.size(file.path(parsedArticlesFolder, "untidy_articles_data.csv"))/1024/1024
 [1] 3001.875
 ```
 
-Cleaning took more then 8 hours (`3.5GHz Xeon E-1240 v5, 32Gb, SSD, Windows Server 2012`):
+Приведение даты заняло больше 8 часов (проблемное место все тоже, секция 7). Время выполнения на сервере `3.5GHz Xeon E-1240 v5, 32Gb, SSD, Windows Server 2012`:
 ```
 [1] "1 2017-07-27 08:21:46"
 [1] "2 2017-07-27 08:22:44"
@@ -1174,7 +1202,7 @@ Cleaning took more then 8 hours (`3.5GHz Xeon E-1240 v5, 32Gb, SSD, Windows Serv
 
 ```
 
-Table ready to be analyzed (`4.5GB`):
+В результате получена таблица весом `4.5GB`, практически готовая к анализу:
 ```
 > file.size(file.path(tidyArticlesFolder, "tidy_articles_data.csv"))/1024/1024
 [1] 4534.328
@@ -1355,7 +1383,7 @@ StemArticlesData <- function() {
 }
 ```
 
-Result of Part 1:
+Итог первой части, а именно майнинга даты:
 ```R
 > file.size(file.path(stemedArticlesFolder, "stemed_articles_data.csv"))/1024/1024
 [1] 2273.52
@@ -1385,6 +1413,69 @@ Classes ‘data.table’ and 'data.frame':	697601 obs. of  21 variables:
  - attr(*, ".internal.selfref")=<externalptr> 
 ```
 
-Part 1 [repo](https://github.com/ildarcheg/lenta).
-Part 2 [repo](https://github.com/ildarcheg/lentaproject).
+В принципе вот и все. Следующим шагом будет анализ всего этого. Уже подобрал с десяток вопросов, которые можно будет "задать", но будут очень рад услышать ваши идеи и вопросы. Код и процедуры можно найти в [моем репо](https://github.com/ildarcheg/lenta).
+
+
+P.S.
+Дополнительные вопросы для зала:
+1. Насколько "неправильно сужать область воспроизведения исследования" до определенной операционной системы? Или надо по максимуму делать иследование воспроизводимым одновременно под macOS, Linux, Windows?
+2. Допустимо ли в коде итогового исследования оставлять timestamp'ы типа print("выполняется шаг  N")?
+3. Почему в некоторых случаях `2.7GHz i5, 16Gb Ram, SSD, macOS 10.12, R version 3.4.0` в два раза производительнее `3.5GHz Xeon E-1240 v5, 32Gb, SSD, Windows Server 2012`?
+4. Достаточно ли комментариев в коде?
+5. Насколько код читаем и насколько он не "code smells"?
+
+
+P.P.S где-то в этом месте я хотел выложить свой датасет в общий доступ, чтобы желающие датасаентисы кинулись его анализировать, нашли бы кучу инсайтов, поделились ими, а я бы по горячим следам повторил их подвиги, наклепал кучу графиков и таблиц и таки завершил бы свой курсовой проект. Но... Пошел чуть дальше.
+
+# Анализируй это. Lenta-anal.ru (часть 2)
+
+### Data Engineering
+
+В какой-то момент (ближе к концу своего проекта) почувствовал, что неплохо было посмотреть на линукс чуть ближе. Поиск подходящего курса на различных учебных площадках в итоге привел на рутрекер, где я и увидел Linux Foundation Certified System Administrator (LFCS) в исполнении Sander van Vugt (рекомендую, акцент преподавателя прочто чумовой). 15 часовой курс удалось осилить за неделю (часть в голове осталось, а часть типа Kernel вылетела почти сразу). Как итог, новые знания захотелось примерить на практике и немного пересмотреть подход к первоначальной задаче, а соответственно и к решению. На момент, когда я приступил к работе цель представляла из себя что-то типа "получить веб-страницу, которая, обновлясь раз в сутки, показывала бы текущее состояние Ленты.ру".
+
+Для начала было принято решение отказаться от Мака и полностью переехать в облако. Для этого был арендован Линукс сервер на убунту с 2Гб рам и 2 ядрами, на котором сразу же был развернут RStudio Server и вся дальнейшая работа продолжилась на нем. Дальше было необходимо выбрать как хранить все полученные данные, как понималось, что работать с файлами это моветон. Выбор пал на объектную МонгоДБ, которая тут же была установлена (хотя как оказалось удобных пакетов для работы с МонгоДБ из Р было не так уж и много).
+
+Были созданы 4 коллекции:
+```
+DefCollections <- function() {
+  collections <- c("c01_daytobeprocessed", 
+                   "c02_linkstobeprocessed", 
+                   "c03_pagestobeprocessed", 
+                   "c04_articlestobeprocessed")
+  return(collections)
+}
+```
+
+И 4 скрипта:
+```
+DefScripts <- function() {
+  scripts <- c("01_days_process.R", 
+               "02_links_process.R", 
+               "03_pages_process.R", 
+               "04_articles_process.R")
+  return(scripts)
+}
+```
+
+Схема работы подразумевалась следующая:
+1. В коллекцию `c01_daytobeprocessed` добавлялись дни, которые надо было обработать, например массив дней в промежутке `2010-01-10 - 2010-01-10`. 
+2. Далее запускался скрипт `01_days_process.R`, который проходя по коллекции `c01_daytobeprocessed`, получал дни, для каждого дня получал массив ссылок на статьи и помещал в коллекцию `c02_linkstobeprocessed`.
+3. Далее запускался скрипт `02_links_process.R`, который проходя по коллекции `c02_linkstobeprocessed`, получал ссылки, скачивал и парсил содержимое страниц, скачивал данные соцмедия, скачивал комментарии и помещал в коллекцию `c03_pagestobeprocessed`.
+4. Далее запускался скрипт `03_pages_process.R`, который проходя по коллекции `c03_pagestobeprocessed`, для каждой статьи получал распарсенный ранее текст, чистил его, стеммил (приводил нормальному виду) и помещал в коллецию `c04_articlestobeprocessed`.
+
+Таким образом, закинул в первую коллекцию массив дат и запустив последовательно данные скрипты (которые по сути были модифицированными версиями скриптов первой части) можно было получить итоговый датасет, готовый для анализа. Также, если при помощи cron ежедневно закидвать в коллекцию новые даты, можно получить регулярно пополняемый дадасет. Но... Ни о какой параллельности тут говорить не приходилось. Закинув более менее большой массив дат (не говоря уже про `c("1999-09-01", as.Date(Sys.time())`) можно было повесить сервер на неделю. 
+
+Немного подумав, пришел к следующей схеме:
+1. Раз в 5 секунд срабатывает cron, который запускает командный скрипт. Скрипт смотрит на текущую загрузку процессоров, если общая загрузка меньше 80%, тогда скрипт смотрит в первую коллекцию `c01_daytobeprocessed`, берет оттуда 10 дней и запускает `01_days_process.R`. 
+2. Тот же самый скрипт, раз в 5 секунд смотрит и в другие коллекции, и если на момент запуска скрипта общая загрузка меньше 80%, то берет из каждой коллекции по 100 ссылок и запускает для них соответсвующие скрипты. 
+
+![Состояние сервера и базы данных в момент обработки заданий](images/db_status.jpg)
+
+Такам образом, достаточно было закинуть в первую коллекцию весь период дат `c("1999-09-01", as.Date(Sys.time())` и просто наблюдать. Конечно, с конфигурацией 2Гб рам и 2мя ядрами наблюдать пришлось бы долго, но хостинг позволял легко увеличить количество ядер до 16, а памяти до 8гб. Причем такая мощность нужна была на ограниченный период времени, 700т статей обрабатывались менее чем за сутки, после чего сервер можно было вернуть к базовым настройках.
+
+А дальше как и описывал раньше - достаточно было раз в сутки докидывать новые даты в первую коллекцию, и все остальное проиходило бы автоматически.
+
+Тоже самое и с автообновляемой страницей отчета. Раз в сутки запускается скрипт, которые выгружает данные из монго в CSV, обрабатывает, строит графики, помещает на вебстраницу и выкладывает в общий доступ.
+
+Результат доступен по ссылке [LENTA-ANAL.RU](https://lenta-anal.ru).
 
