@@ -4,9 +4,9 @@ Lenta.ru is a Moscow-based online newspaper in Russian language, owned by Ramble
 
 
 ### Grabbing
-First of all I had to decide how to grab a content of the newspaper. Google told that the optimal way for that would be [rvest](https://cran.r-project.org/web/packages/rvest/rvest.pdf) package. This package allows to get plain text content of the page and extract content from specific field with xPath.
+First of all, I had to decide how to grab a content of the newspaper. Google told that the optimal way for that would be [rvest](https://cran.r-project.org/web/packages/rvest/rvest.pdf) package. This package allows to get plain text content of the page and extract content from a specific field with xPath.
 
-The structure of the website allows us to get all articles for specific day using this type of link `https://lenta.ru/YEAR/MONTH/DAY/` (as example https://lenta.ru/2017/07/01/).  
+The structure of the website allows us to get all articles for a specific day using this type of link `https://lenta.ru/YEAR/MONTH/DAY/` (as example https://lenta.ru/2017/07/01/).  
 For grabbing and parsing purposes I used following packages:
 ```R
 require(lubridate)
@@ -82,15 +82,15 @@ Using `read_html` in a loop I got a content of all archive pages and using `html
 [1] 379862
 ```
 
-Once I finished this step I realized one problem. The code above took about `40 min` to process `2738` links and it was easy to approximate the time I need to process `379862`. About `5550 minutes` or `92.5 hours`... This is beyond awkward. I decided to try `readLines {base}` and `download.file {utils}` and got same result. Tried `htmlParse {XML}` (similat to `read_html`), got the same. Tried `getURL {RCurl}`, same. Dead end.
+Once I finished this step I realized one problem. The code above took about `40 min` to process `2738` links and it was easy to approximate the time I need to process `379862`. About `5550 minutes` or `92.5 hours`... This is beyond awkward. I decided to try `readLines {base}` and `download.file {utils}` and got same result. Tried `htmlParse {XML}` (similar to `read_html`), got the same. Tried `getURL {RCurl}`, same. Dead end.
 
 ![](images/dead_end.jpg)
 
-Looking for solution of the problem I decided to try the tools that can work in parallel, because at the time of the performing CPU, RAM and Network were not busy. Google advised to check out `parallel-package {parallel}`. After few hours of testing I realized that there is no profit at all. Someone in Google told that it does make a sense to parallel calculation and data manipulation, but the work with HDD or network will be done within one process one by one (I might be wotk in understanding of the situation). Anyway, in case it works the improvements will be related to number of the cores and even if I had 8 cores (but I didn't) I had to wait about `690 minutes`.
+Looking for a solution of the problem I decided to try the tools that can work in parallel because at the time of the performing CPU, RAM and Network were not busy. Google advised to check out `parallel-package {parallel}`. After a few hours of testing, I realized that there is no profit at all. Someone in Google told that it does make a sense to parallel calculation and data manipulation, but the work with HDD or network will be done within one process one by one (I might be wrong in understanding of the situation). Anyway, in case it works the improvements will be related to a number of the cores and even if I had 8 cores (but I didn't) I had to wait about `690 minutes`.
 
-My next idea was to run few R processes, but didn't find in Google "how to run code in new R session". Thought about running R script in command line but at that time my experience with CMD was realy poor. Dead end again.
+My next idea was to run a few R processes, but didn't find in Google "how to run code in a new R session". Thought about running R script in command line but at that time my experience with CMD was really poor. Dead end again.
 
-At that time I decided to ask the community and I alrready knew [stackoverflow](https://stackoverflow.com) was the best place for that. I described the [problem](https://stackoverflow.com/questions/39180106/i-have-to-grab-plantext-from-over-290k-webpages-is-there-a-way-to-improve-the-s) and very soon I got a reply from [Bob Rudis](https://rud.is/). I tried his code and it worked. This one problem - I have no idea how it worked. It was a first time I heard of `wget`, I didn't know what to do with `WARC` and why to pass function to function as an argument. But `when you look long into a code, the code looks into you` and after breaking the code into peaces and run it one by one you have a change to understand it (somethimes). Google help me again with understanding `wget`. 
+At that time I decided to ask the community and I already knew [stackoverflow](https://stackoverflow.com) was the best place for that. I described the [problem](https://stackoverflow.com/questions/39180106/i-have-to-grab-plantext-from-over-290k-webpages-is-there-a-way-to-improve-the-s) and very soon I got a reply from [Bob Rudis](https://rud.is/). I tried his code and it worked. This one problem - I have no idea how it worked. It was a first time I heard of `wget`, I didn't know what to do with `WARC` and why to pass a function to function as an argument. But `when you look long into a code, the code looks into you` and after breaking the code into pieces and run it one by one you have a chance to understand it (sometimes). Google help me again with understanding `wget`. 
 
 The final solution of the problem with help of `wget` was:
 ```
@@ -102,11 +102,11 @@ The code itself looks like:
   system("wget --warc-file=lenta -i lenta.urls", intern = FALSE)
 ```
 
-At the end of performing I got numeroues of files with html content of the pages. Also I got compressed `WARC` file with logs and pages content. The idea of [Bob Rudis](https://rud.is/) was to parse `WARC`. Exactly what I was looking for plus I kept all pages localy.
+At the end of performing, I got numerous files with html content of the pages. Also, I got compressed `WARC` file with logs and pages content. The idea of [Bob Rudis](https://rud.is/) was to parse `WARC`. Exactly what I was looking for plus I kept all pages locally.
 
-First performance measurement shown that `2000` links were downloaded for `10 minutes`, that gives roughly `1890 minutes` - almost 3 times faster but still not enought. Decided to step back and try with `parallel-package {parallel}` but didn't find any profits.
+First performance measurement showed that `2000` links were downloaded for `10 minutes`, that gives roughly `1890 minutes` - almost 3 times faster but still not enough. Decided to step back and try with `parallel-package {parallel}` but didn't find any profits.
 
-Finaly I decide to do knight's move. Run a few really parallel processes. After spending few days playing with CMD I was ready to run parallel processes out of R. This code helped me to prepare bash script that runs a bunch of `wget` processes simultaneously:
+Finaly, I decided to do knight's move. Run a few really parallel processes. After spending few days playing with CMD I was ready to run parallel processes out of R. This code helped me to prepare bash script that runs a bunch of `wget` processes simultaneously:
 ```R
 ## STEP 2. Prepare wget CMD files for parallel downloading
 # Create CMD file.
@@ -192,14 +192,13 @@ The result of the script:
 [1] 18770.4
 ```
 
-`379703` downloaded pages (`66713.61MB`) and `38` compressed `WARC` (`18770.40MB`). I realized that I lost about `159` pages and I knew that have to check out `WARC` in order to find the problem, but decided not to do.
+`379703` downloaded pages (`66713.61MB`) and `38` compressed `WARC` (`18770.40MB`). I realized that I lost about `159` pages and I knew that have to check out `WARC` in order to find the problem but decided not to do for that time.
 
 ### Parsing
 
-Once I decided what information woulb be interesting for me I prepared this script:
+Once I decided what information would be interesting for me I prepared this script:
 ```R
-# Parse srecific file
-# Parse srecific file
+# Parse specific file
 ReadFile <- function(filename) {
   
   pg <- read_html(filename, encoding = "UTF-8")
@@ -373,7 +372,7 @@ ReadFilesInFolder <- function(folderNumber) {
 ```
 Getting `00001-10000` folder content, breaking into chunks by 1000, I run `ReadFile` for each chunk.
 
-Performance measurement shown that it takes about `8 minutes` for `10000` articles and `300 minutes` or `5 hours` for all.
+Performance measurement showed that it takes about `8 minutes` for `10000` articles and `300 minutes` or `5 hours` for all.
 
 My second knight's move and the code that prepares bash script for parallel parsing:
 ```R
@@ -433,11 +432,11 @@ ReadFilesInFolder(n)
 
 I got `100%` load and `30 minutes`. One more 10 times profit.
 
-And final step of the pasring stage was to combine 38 files:
+And final step of the parsing stage was to combine 38 files:
 ```R
 ## STEP 4. Prepare combined articles data
 # Read all parsed csv and combine them in one.
-# Expect about 1.7Gb in combined file
+# Expect about 1.7Gb in a combined file
 UnionData <- function() {
   timestamp()
   files <- list.files(parsedArticlesFolder, full.names = TRUE, recursive = FALSE)
@@ -491,7 +490,7 @@ Parsing is done. Only one step left before we go to clean and tidy stage.
 
 ### SOCIAL MEDIA
 
-Lets gather information about how people react to each article. With help of Developer Tools in Google Chrome I found out this request:
+Let's gather information about how people react to each article. With help of Developer Tools in Google Chrome I found out this request:
 ```
 https://graph.facebook.com/?id=https%3A%2F%2Flenta.ru%2Fnews%2F2017%2F08%2F10%2Fudostov%2F
 ```
@@ -514,9 +513,9 @@ The answer was:
 }
 ```
 
-Same request were found for VK, Odnoklassniki (social networks popular in Russia) and Rambler.
+The same request was found for VK, Odnoklassniki (social networks popular in Russia) and Rambler.
 
-The code that prepare 4 CMD files, that run parallel requests to social networks above:
+The code that prepares 4 CMD files, that run parallel requests to social networks above:
 ```R
 ## STEP 5. Prepare wget CMD files for parallel downloading social
 # Create CMD file.
@@ -752,7 +751,7 @@ ReadSocial <- function() {
 }
 ```
 
-Grabiing is done.
+Grabbing is done.
 
 ### Cleaning
 
@@ -1084,7 +1083,7 @@ Log from real server `3.5GHz Xeon E-1240 v5, 32Gb, SSD, Windows Server 2012`:
 [1] "10 2017-07-21 19:35:18"
 ```
 
-I believe the commets I left are enought to undestanding the code.
+I believe the comments I left are enough to understand the code.
 
 I realized that `UpdateAdditionalLinksDomain` and `tldextract {tldextract}` (where I parse links) is a bottleneck. I decided not to spend additional time for optimization (maybe in a future).
 
@@ -1127,7 +1126,7 @@ Result:
 
 ### REPRODUCIBLE RESEARCH
 
-Before final step I decided to check if my research is reproducible and repeat from the beginning with `September 1st, 1999`.
+Before the final step, I decided to check if my research is reproducible and repeat from the beginning with `September 1st, 1999`.
 
 > I am dealing with 700К articles from now.
 
